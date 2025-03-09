@@ -1,24 +1,70 @@
+///////////////////////////////////////////////////////////////////////////////
+// BSD 2-Clause License
+//
+// Copyright (C) 2024, INRIA
+// Copyright note valid unless otherwise stated in individual files.
+// All rights reserved.
+///////////////////////////////////////////////////////////////////////////////
 #pragma once
 
-#include "types.hpp"
+#include <pinocchio/fwd.hpp>
+// Include pinocchio first
+#include <Eigen/Dense>
 #include <string>
 #include <vector>
 
-#include <pinocchio/multibody/data.hpp>
-#include <pinocchio/multibody/model.hpp>
+#include "fwd.hpp"
 
-using pinocchio::Model;
-using pinocchio::Data;
-using pinocchio::FrameIndex;
-using pinocchio::SE3;
-/**
- * @brief Class managing every robot-related quantities.
- *
- * It holds the robot data, controlled joints, end-effector names and other useful items.
- */
-struct RobotModelHandler
+namespace simple_mpc
 {
-public:
+  using namespace pinocchio;
+
+  /**
+   * @brief Class managing every robot-related quantities.
+   *
+   * It holds the robot data, controlled joints, end-effector names
+   * and other useful items.
+   */
+  struct RobotModelHandler
+  {
+  private:
+    /**
+     * @brief Model to be used by ocp
+     */
+    Model model_;
+
+    /**
+     * @brief Robot total mass
+     */
+    double mass_;
+
+    /**
+     * @brief Reference configuration and velocity (most probably null velocity)
+     * to use
+     */
+    Eigen::VectorXd reference_state_;
+
+    /**
+     * @brief Names of the frames to be in contact with the environment
+     */
+    std::vector<std::string> feet_names_;
+
+    /**
+     * @brief Ids of the frames to be in contact with the environment
+     */
+    std::vector<FrameIndex> feet_ids_;
+
+    /**
+     * @brief Ids of the frames that are reference position for the feet
+     */
+    std::vector<FrameIndex> ref_feet_ids_;
+
+    /**
+     * @brief Base frame id
+     */
+    pinocchio::FrameIndex base_id_;
+
+  public:
     /**
      * @brief Construct a new Robot Model Handler object
      *
@@ -28,7 +74,7 @@ public:
      * @param reference_configuration_name Reference configuration to use
      */
     RobotModelHandler(
-        const Model &model, const std::string &reference_configuration_name, const std::string &base_frame_name);
+        const Model &model, const Eigen::VectorXd reference_configuration, const std::string &base_frame_name);
 
     /**
      * @brief
@@ -55,74 +101,65 @@ public:
     // Const getters
     ConstVectorRef getReferenceState() const
     {
-        return reference_state_;
+      return reference_state_;
     }
     size_t getFootNb(const std::string &foot_name) const
     {
-        return size_t(std::find(feet_names_.begin(), feet_names_.end(), foot_name) - feet_names_.begin());
+      return size_t(std::find(feet_names_.begin(), feet_names_.end(), foot_name) - feet_names_.begin());
     }
 
     const std::vector<FrameIndex> &getFeetIds() const
     {
-        return feet_ids_;
+      return feet_ids_;
     }
 
     const std::string &getFootName(size_t i) const
     {
-        return feet_names_.at(i);
+      return feet_names_.at(i);
     }
 
     const std::vector<std::string> &getFeetNames() const
     {
-        return feet_names_;
+      return feet_names_;
     }
 
     FrameIndex getBaseFrameId() const
     {
-        return base_id_;
+      return base_id_;
     }
 
     FrameIndex getFootId(const std::string &foot_name) const
     {
-        return feet_ids_.at(getFootNb(foot_name));
+      return feet_ids_.at(getFootNb(foot_name));
     }
 
     FrameIndex getRefFootId(const std::string &foot_name) const
     {
-        return ref_feet_ids_.at(getFootNb(foot_name));
+      return ref_feet_ids_.at(getFootNb(foot_name));
     }
 
     double getMass() const
     {
-        return mass_;
+      return mass_;
     }
 
     const Model &getModel() const
     {
-        return model_;
+      return model_;
     }
+  };
 
-private:
-    Model model_;
-    double mass_;                          // Robot total mass
-    Eigen::VectorXd reference_state_;      // Reference configuration and velocity (most probably null velocity) to use
-    std::vector<std::string> feet_names_;  // Names of the frames to be in contact with the environment
-    std::vector<FrameIndex> feet_ids_;     // Ids of the frames to be in contact with the environment
-    std::vector<FrameIndex> ref_feet_ids_; // Ids of the frames that are reference position for the feet
-    pinocchio::FrameIndex base_id_;        // Base frame id
-};
-
-class RobotDataHandler
-{
-public:
+  class RobotDataHandler
+  {
+  public:
     typedef Eigen::Matrix<double, 9, 1> CentroidalStateVector;
 
-private:
+  private:
     RobotModelHandler model_handler_;
     Data data_;
     Eigen::VectorXd x_;
 
-public:
+  public:
     RobotDataHandler(const RobotModelHandler &model_handler);
 
     // Set new robot state
@@ -132,27 +169,29 @@ public:
     // Const getters
     const SE3 &getRefFootPose(const std::string &foot_name) const
     {
-        return data_.oMf[model_handler_.getRefFootId(foot_name)];
+      return data_.oMf[model_handler_.getRefFootId(foot_name)];
     };
     const SE3 &getFootPose(const std::string &foot_name) const
     {
-        return data_.oMf[model_handler_.getFootId(foot_name)];
+      return data_.oMf[model_handler_.getFootId(foot_name)];
     };
     const SE3 &getBaseFramePose() const
     {
-        return data_.oMf[model_handler_.getBaseFrameId()];
+      return data_.oMf[model_handler_.getBaseFrameId()];
     }
     const RobotModelHandler &getModelHandler() const
     {
-        return model_handler_;
+      return model_handler_;
     }
     const Data &getData() const
     {
-        return data_;
+      return data_;
     }
     const Eigen::VectorXd getState() const
     {
-        return x_;
+      return x_;
     };
     RobotDataHandler::CentroidalStateVector getCentroidalState() const;
-};
+  };
+
+} // namespace simple_mpc
