@@ -41,7 +41,7 @@ namespace simple_mpc
     // Timings
     int T_fly = 80;
     int T_contact = 20;
-    size_t T = 100;
+    size_t T = 100;  // todo: 暂时没有用？
     double timestep = 0.01;
   };
 

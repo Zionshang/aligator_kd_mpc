@@ -93,11 +93,12 @@ namespace simple_mpc
     return cs->components_.size();
   }
 
+  // todo: 传参改为传递结构体
   void OCPHandler::createProblem(
     const ConstVectorRef & x0,
     const size_t horizon,
     const int force_size,
-    const double gravity,
+    const double gravity, // todo: double 改为 Eigen::Vector3d
     const bool terminal_constraint = false)
   {
     std::vector<std::map<std::string, bool>> contact_phases;

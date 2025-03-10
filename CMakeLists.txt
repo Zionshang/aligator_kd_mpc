@@ -15,3 +15,8 @@ target_link_libraries(aligator_kd_mpc pinocchio::pinocchio)
 target_link_libraries(aligator_kd_mpc aligator::aligator)
 target_link_libraries(aligator_kd_mpc example-robot-data::example-robot-data)
 target_link_libraries(aligator_kd_mpc ndcurves::ndcurves)
+
+configure_file (
+  "${PROJECT_SOURCE_DIR}/include/utils/project_path.hpp.in"
+  "${PROJECT_SOURCE_DIR}/include/utils/project_path.hpp" @ONLY
+)

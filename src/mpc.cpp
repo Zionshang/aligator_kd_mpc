@@ -16,28 +16,27 @@ namespace simple_mpc
   using namespace aligator;
   constexpr std::size_t maxiters = 100;
 
-  MPC::MPC(const MPCSettings & settings, std::shared_ptr<OCPHandler> problem)
-  : settings_(settings)
-  , ocp_handler_(problem)
+  MPC::MPC(const MPCSettings &settings, std::shared_ptr<OCPHandler> problem)
+      : settings_(settings), ocp_handler_(problem)
   {
 
     data_handler_ = std::make_shared<RobotDataHandler>(ocp_handler_->getModelHandler());
     data_handler_->updateInternalData(ocp_handler_->getModelHandler().getReferenceState(), true);
     std::map<std::string, Eigen::Vector3d> starting_poses;
-    for (auto const & name : ocp_handler_->getModelHandler().getFeetNames())
+    for (auto const &name : ocp_handler_->getModelHandler().getFeetNames())
     {
       starting_poses.insert({name, data_handler_->getFootPose(name).translation()});
 
       relative_feet_poses_.insert(
-        {name, data_handler_->getBaseFramePose().inverse() * data_handler_->getFootPose(name)});
+          {name, data_handler_->getBaseFramePose().inverse() * data_handler_->getFootPose(name)});
     }
     foot_trajectories_ = FootTrajectory(
-      starting_poses, settings_.swing_apex, settings_.T_fly, settings_.T_contact, ocp_handler_->getSize());
+        starting_poses, settings_.swing_apex, settings_.T_fly, settings_.T_contact, ocp_handler_->getSize());
 
     foot_trajectories_.updateApex(settings.swing_apex);
     x0_ = ocp_handler_->getProblemState(*data_handler_);
 
-    solver_ = std::make_unique<SolverProxDDP>(settings_.TOL, settings_.mu_init, maxiters, aligator::QUIET);
+    solver_ = std::make_unique<SolverProxDDP>(settings_.TOL, settings_.mu_init, maxiters, aligator::VerboseLevel::QUIET);
     solver_->rollout_type_ = aligator::RolloutType::LINEAR;
 
     if (settings_.num_threads > 1)
@@ -58,7 +57,7 @@ namespace simple_mpc
     std::map<std::string, pinocchio::SE3> contact_poses;
     std::map<std::string, Eigen::VectorXd> force_map;
 
-    for (auto const & name : ee_names_)
+    for (auto const &name : ee_names_)
     {
       contact_states.insert({name, true});
       land_constraint.insert({name, false});
@@ -72,7 +71,7 @@ namespace simple_mpc
       us_.push_back(ocp_handler_->getReferenceControl(0));
 
       std::shared_ptr<StageModel> sm = std::make_shared<StageModel>(
-        ocp_handler_->createStage(contact_states, contact_poses, force_map, land_constraint));
+          ocp_handler_->createStage(contact_states, contact_poses, force_map, land_constraint));
       standing_horizon_.push_back(sm);
       standing_horizon_data_.push_back(sm->createData());
     }
@@ -95,7 +94,7 @@ namespace simple_mpc
     twist_vect_.setZero();
   }
 
-  void MPC::generateCycleHorizon(const std::vector<std::map<std::string, bool>> & contact_states)
+  void MPC::generateCycleHorizon(const std::vector<std::map<std::string, bool>> &contact_states)
   {
     contact_states_ = contact_states;
     // Guarantee that cycle horizon size is higher than problem size
@@ -107,7 +106,7 @@ namespace simple_mpc
     }
 
     // Generate contact switch timings
-    for (auto const & name : ee_names_)
+    for (auto const &name : ee_names_)
     {
       foot_takeoff_times_.insert({name, std::vector<int>()});
       foot_land_times_.insert({name, std::vector<int>()});
@@ -128,16 +127,16 @@ namespace simple_mpc
         foot_land_times_.at(name).push_back((int)(contact_states_.size() - 1 + ocp_handler_->getSize()));
     }
     std::map<std::string, bool> previous_contacts;
-    for (auto const & name : ee_names_)
+    for (auto const &name : ee_names_)
     {
       previous_contacts.insert({name, true});
     }
 
     // Generate the model stages for cycle horizon
-    for (auto const & state : contact_states_)
+    for (auto const &state : contact_states_)
     {
       int active_contacts = 0;
-      for (auto const & contact : state)
+      for (auto const &contact : state)
       {
         if (contact.second)
           active_contacts += 1;
@@ -152,7 +151,7 @@ namespace simple_mpc
       std::map<std::string, pinocchio::SE3> contact_poses;
       std::map<std::string, Eigen::VectorXd> force_map;
 
-      for (auto const & name : ee_names_)
+      for (auto const &name : ee_names_)
       {
         contact_poses.insert({name, data_handler_->getFootPose(name)});
         if (state.at(name))
@@ -161,7 +160,7 @@ namespace simple_mpc
           force_map.insert({name, force_zero});
       }
       std::map<std::string, bool> land_contacts;
-      for (auto const & name : ee_names_)
+      for (auto const &name : ee_names_)
       {
         if (!previous_contacts.at(name) and state.at(name))
         {
@@ -174,14 +173,14 @@ namespace simple_mpc
       }
 
       std::shared_ptr<StageModel> sm =
-        std::make_shared<StageModel>(ocp_handler_->createStage(state, contact_poses, force_map, land_contacts));
+          std::make_shared<StageModel>(ocp_handler_->createStage(state, contact_poses, force_map, land_contacts));
       cycle_horizon_.push_back(sm);
       cycle_horizon_data_.push_back(sm->createData());
       previous_contacts = state;
     }
   }
 
-  void MPC::iterate(const ConstVectorRef & x)
+  void MPC::iterate(const ConstVectorRef &x)
   {
 
     data_handler_->updateInternalData(x, false);
@@ -223,15 +222,13 @@ namespace simple_mpc
       rotate_vec_left(cycle_horizon_);
       rotate_vec_left(cycle_horizon_data_);
       rotate_vec_left(contact_states_);
-      for (auto const & name : ee_names_)
+      for (auto const &name : ee_names_)
       {
         if (
-          !contact_states_[contact_states_.size() - 1].at(name)
-          and contact_states_[contact_states_.size() - 2].at(name))
+            !contact_states_[contact_states_.size() - 1].at(name) and contact_states_[contact_states_.size() - 2].at(name))
           foot_takeoff_times_.at(name).push_back((int)(contact_states_.size() + ocp_handler_->getSize()));
         if (
-          contact_states_[contact_states_.size() - 1].at(name)
-          and !contact_states_[contact_states_.size() - 2].at(name))
+            contact_states_[contact_states_.size() - 1].at(name) and !contact_states_[contact_states_.size() - 2].at(name))
           foot_land_times_.at(name).push_back((int)(contact_states_.size() + ocp_handler_->getSize()));
       }
       updateCycleTiming(false);
@@ -250,7 +247,7 @@ namespace simple_mpc
 
   void MPC::updateCycleTiming(const bool updateOnlyHorizon)
   {
-    for (auto const & name : ee_names_)
+    for (auto const &name : ee_names_)
     {
       for (size_t i = 0; i < foot_land_times_.at(name).size(); i++)
       {
@@ -272,8 +269,9 @@ namespace simple_mpc
 
   void MPC::updateStepTrackerReferences()
   {
-    for (auto const & name : ee_names_)
+    for (auto const &name : ee_names_)
     {
+      std::cout << "name: " << name << std::endl;
       int foot_land_time = -1;
       if (!foot_land_times_.at(name).empty())
         foot_land_time = foot_land_times_.at(name)[0];
@@ -284,20 +282,20 @@ namespace simple_mpc
 
       // Use the Raibert heuristics to compute the next foot pose
       twist_vect_[0] =
-        -(data_handler_->getRefFootPose(name).translation()[1] - data_handler_->getBaseFramePose().translation()[1]);
+          -(data_handler_->getRefFootPose(name).translation()[1] - data_handler_->getBaseFramePose().translation()[1]);
       twist_vect_[1] =
-        data_handler_->getRefFootPose(name).translation()[0] - data_handler_->getBaseFramePose().translation()[0];
+          data_handler_->getRefFootPose(name).translation()[0] - data_handler_->getBaseFramePose().translation()[0];
       next_pose_.head(2) = data_handler_->getRefFootPose(name).translation().head(2);
-      next_pose_.head(2) += (velocity_base_.head(2) + velocity_base_[5] * twist_vect_)
-                            * (settings_.T_fly + settings_.T_contact) * settings_.timestep;
+      next_pose_.head(2) += (velocity_base_.head(2) + velocity_base_[5] * twist_vect_) * (settings_.T_fly + settings_.T_contact) * settings_.timestep;
       next_pose_[2] = data_handler_->getFootPose(name).translation()[2];
-
+      std::cout << "next_pose_: " << next_pose_.transpose() << std::endl;
       foot_trajectories_.updateTrajectory(
-        update, foot_land_time, data_handler_->getFootPose(name).translation(), next_pose_, name);
+          update, foot_land_time, data_handler_->getFootPose(name).translation(), next_pose_, name);
       pinocchio::SE3 pose = pinocchio::SE3::Identity();
       for (unsigned long time = 0; time < ocp_handler_->getSize(); time++)
       {
         pose.translation() = foot_trajectories_.getReference(name)[time];
+        std::cout << "pose: " << pose.translation().transpose() << std::endl;
         setReferencePose(time, name, pose);
       }
     }
@@ -307,7 +305,7 @@ namespace simple_mpc
 
     Eigen::Vector3d com_ref;
     com_ref << 0, 0, 0;
-    for (auto const & name : ee_names_)
+    for (auto const &name : ee_names_)
     {
       com_ref += foot_trajectories_.getReference(name).back();
     }
@@ -317,17 +315,17 @@ namespace simple_mpc
     ocp_handler_->updateTerminalConstraint(com_ref);
   }
 
-  void MPC::setReferencePose(const std::size_t t, const std::string & ee_name, const pinocchio::SE3 & pose_ref)
+  void MPC::setReferencePose(const std::size_t t, const std::string &ee_name, const pinocchio::SE3 &pose_ref)
   {
     ocp_handler_->setReferencePose(t, ee_name, pose_ref);
   }
 
-  void MPC::setTerminalReferencePose(const std::string & ee_name, const pinocchio::SE3 & pose_ref)
+  void MPC::setTerminalReferencePose(const std::string &ee_name, const pinocchio::SE3 &pose_ref)
   {
     ocp_handler_->setTerminalReferencePose(ee_name, pose_ref);
   }
 
-  const pinocchio::SE3 MPC::getReferencePose(const std::size_t t, const std::string & ee_name) const
+  const pinocchio::SE3 MPC::getReferencePose(const std::size_t t, const std::string &ee_name) const
   {
     return ocp_handler_->getReferencePose(t, ee_name);
   }
@@ -337,12 +335,12 @@ namespace simple_mpc
     return ocp_handler_->getPoseBase(t);
   }
 
-  TrajOptProblem & MPC::getTrajOptProblem()
+  TrajOptProblem &MPC::getTrajOptProblem()
   {
     return ocp_handler_->getProblem();
   }
 
-  void MPC::switchToWalk(const Vector6d & velocity_base)
+  void MPC::switchToWalk(const Vector6d &velocity_base)
   {
     now_ = WALKING;
     velocity_base_ = velocity_base;
