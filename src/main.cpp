@@ -163,7 +163,6 @@ int main(int argc, char const *argv[])
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> iter_time = end - start;
         std::cout << "Iteration " << i << " took " << iter_time.count() << " ms" << std::endl;
-
         x_measured = mpc.xs_[1];
         x_logger.push_back(x_measured);
     }

@@ -105,7 +105,7 @@ namespace simple_mpc
       contact_states_.insert(contact_states_.end(), copy_vec.begin(), copy_vec.end());
     }
 
-    // Generate contact switch timings
+    // Generate contact switch timings 腾空与落地时刻记录
     for (auto const &name : ee_names_)
     {
       foot_takeoff_times_.insert({name, std::vector<int>()});
@@ -114,13 +114,14 @@ namespace simple_mpc
       {
         if (!contact_states_[i].at(name) and contact_states_[i - 1].at(name))
         {
-          foot_takeoff_times_.at(name).push_back((int)(i + ocp_handler_->getSize()));
+          foot_takeoff_times_.at(name).push_back((int)(i + ocp_handler_->getSize())); //? 为什么要加上ocp_handler_->getSize()？
         }
         if (contact_states_[i].at(name) and !contact_states_[i - 1].at(name))
         {
           foot_land_times_.at(name).push_back((int)(i + ocp_handler_->getSize()));
         }
       }
+      // 处理时间窗口首尾之间的状态跳变
       if (contact_states_.back().at(name) and !contact_states_[0].at(name))
         foot_takeoff_times_.at(name).push_back((int)(contact_states_.size() - 1 + ocp_handler_->getSize()));
       if (!contact_states_.back().at(name) and contact_states_[0].at(name))
@@ -135,6 +136,7 @@ namespace simple_mpc
     // Generate the model stages for cycle horizon
     for (auto const &state : contact_states_)
     {
+      // 首先计算当前接触的末端个数
       int active_contacts = 0;
       for (auto const &contact : state)
       {
@@ -224,11 +226,12 @@ namespace simple_mpc
       rotate_vec_left(contact_states_);
       for (auto const &name : ee_names_)
       {
-        if (
-            !contact_states_[contact_states_.size() - 1].at(name) and contact_states_[contact_states_.size() - 2].at(name))
+        if (!contact_states_[contact_states_.size() - 1].at(name) and
+            contact_states_[contact_states_.size() - 2].at(name))
           foot_takeoff_times_.at(name).push_back((int)(contact_states_.size() + ocp_handler_->getSize()));
-        if (
-            contact_states_[contact_states_.size() - 1].at(name) and !contact_states_[contact_states_.size() - 2].at(name))
+
+        if (contact_states_[contact_states_.size() - 1].at(name) and
+            !contact_states_[contact_states_.size() - 2].at(name))
           foot_land_times_.at(name).push_back((int)(contact_states_.size() + ocp_handler_->getSize()));
       }
       updateCycleTiming(false);
@@ -245,6 +248,7 @@ namespace simple_mpc
     }
   }
 
+  // ? updateOnlyHorizon是干什么的？
   void MPC::updateCycleTiming(const bool updateOnlyHorizon)
   {
     for (auto const &name : ee_names_)
@@ -285,8 +289,7 @@ namespace simple_mpc
       next_pose_.head(2) = data_handler_->getRefFootPose(name).translation().head(2);
       next_pose_.head(2) += (velocity_base_.head(2) + velocity_base_[5] * twist_vect_) * (settings_.T_fly + settings_.T_contact) * settings_.timestep;
       next_pose_[2] = data_handler_->getFootPose(name).translation()[2];
-      foot_trajectories_.updateTrajectory(
-          update, foot_land_time, data_handler_->getFootPose(name).translation(), next_pose_, name);
+      foot_trajectories_.updateTrajectory(update, foot_land_time, data_handler_->getFootPose(name).translation(), next_pose_, name);
       pinocchio::SE3 pose = pinocchio::SE3::Identity();
       for (unsigned long time = 0; time < ocp_handler_->getSize(); time++)
       {

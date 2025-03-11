@@ -56,28 +56,18 @@ namespace simple_mpc
     auto centder_mom = CentroidalMomentumDerivativeResidual(
         space.ndx(), model_handler_.getModel(), settings_.gravity, contact_states, model_handler_.getFeetIds(),
         settings_.force_size);
-    rcost.addCost("state_cost", QuadraticStateCost(space, nu_, x0_, settings_.w_x));
+    rcost.addCost("state_cost", QuadraticStateCost(space, nu_, x0_, settings_.w_x)); // ? 期望状态后续有更新吗？
     rcost.addCost("control_cost", QuadraticControlCost(space, control_ref_, settings_.w_u));
-    rcost.addCost("centroidal_cost", QuadraticResidualCost(space, cent_mom, settings_.w_cent));
-    rcost.addCost("centroidal_derivative_cost", QuadraticResidualCost(space, centder_mom, settings_.w_centder));
+    rcost.addCost("centroidal_cost", QuadraticResidualCost(space, cent_mom, settings_.w_cent));                  // todo: 删除
+    rcost.addCost("centroidal_derivative_cost", QuadraticResidualCost(space, centder_mom, settings_.w_centder)); // todo: 删除
 
-    for (auto const &name : model_handler_.getFeetNames())
+    for (auto const &name : model_handler_.getFeetNames()) // todo: 改成只考虑摆动腿
     {
-      if (settings_.force_size == 6)
-      {
-        FramePlacementResidual frame_residual = FramePlacementResidual(
-            space.ndx(), nu_, model_handler_.getModel(), contact_pose.at(name), model_handler_.getFootId(name));
+      FrameTranslationResidual frame_residual = FrameTranslationResidual(
+          space.ndx(), nu_, model_handler_.getModel(), contact_pose.at(name).translation(),
+          model_handler_.getFootId(name)); // ? mpc过程中在哪里更新了contact_pose的值？
 
-        rcost.addCost(name + "_pose_cost", QuadraticResidualCost(space, frame_residual, settings_.w_frame));
-      }
-      else
-      {
-        FrameTranslationResidual frame_residual = FrameTranslationResidual(
-            space.ndx(), nu_, model_handler_.getModel(), contact_pose.at(name).translation(),
-            model_handler_.getFootId(name));
-
-        rcost.addCost(name + "_pose_cost", QuadraticResidualCost(space, frame_residual, settings_.w_frame));
-      }
+      rcost.addCost(name + "_pose_cost", QuadraticResidualCost(space, frame_residual, settings_.w_frame));
     }
 
     KinodynamicsFwdDynamics ode = KinodynamicsFwdDynamics(
@@ -86,7 +76,7 @@ namespace simple_mpc
     IntegratorSemiImplEuler dyn_model = IntegratorSemiImplEuler(ode, settings_.timestep);
     StageModel stm = StageModel(rcost, dyn_model);
 
-    if (settings_.kinematics_limits)
+    if (settings_.kinematics_limits) // todo: 测试会影响多少计算时间
     {
       StateErrorResidual state_fn = StateErrorResidual(space, nu_, space.neutral());
       std::vector<int> state_id;
@@ -104,42 +94,31 @@ namespace simple_mpc
     {
       if (contact_phase.at(name))
       {
+        // 摩擦力约束
+        if (settings_.force_cone)
+        {
+          CentroidalFrictionConeResidual friction_residual =
+              CentroidalFrictionConeResidual(space.ndx(), nu_, i, settings_.mu, 1e-4);
+          stm.addConstraint(friction_residual, NegativeOrthant());
+        }
+
+        // 支撑腿速度为 0 约束
         FrameVelocityResidual frame_vel = FrameVelocityResidual(
             space.ndx(), nu_, model_handler_.getModel(), v_ref, model_handler_.getFootId(name), pinocchio::LOCAL);
-        if (settings_.force_size == 6)
+        std::vector<int> vel_id = {0, 1, 2}; // 只考虑平移速度
+        FunctionSliceXpr vel_slice = FunctionSliceXpr(frame_vel, vel_id);
+        stm.addConstraint(vel_slice, EqualityConstraint());
+
+        // 落地时刻z方向位置为 0 约束
+        // ? 为什么只考虑落地时刻？这个约束是否有存在的必要？
+        if (land_constraint.at(name))
         {
-          if (settings_.force_cone)
-          {
-            CentroidalWrenchConeResidual wrench_residual =
-                CentroidalWrenchConeResidual(space.ndx(), nu_, i, settings_.mu, settings_.Lfoot, settings_.Wfoot);
-            stm.addConstraint(wrench_residual, NegativeOrthant());
-          }
-          stm.addConstraint(frame_vel, EqualityConstraint());
-        }
-        else
-        {
-          if (settings_.force_cone)
-          {
-            CentroidalFrictionConeResidual friction_residual =
-                CentroidalFrictionConeResidual(space.ndx(), nu_, i, settings_.mu, 1e-4);
-            stm.addConstraint(friction_residual, NegativeOrthant());
-          }
-          std::vector<int> vel_id = {0, 1, 2};
-
-          FunctionSliceXpr vel_slice = FunctionSliceXpr(frame_vel, vel_id);
-          stm.addConstraint(vel_slice, EqualityConstraint());
-          if (land_constraint.at(name))
-          {
-            std::vector<int> frame_id = {2};
-
-            FrameTranslationResidual frame_residual = FrameTranslationResidual(
-                space.ndx(), nu_, model_handler_.getModel(), contact_pose.at(name).translation(),
-                model_handler_.getFootId(name));
-
-            FunctionSliceXpr frame_slice = FunctionSliceXpr(frame_residual, frame_id);
-
-            stm.addConstraint(frame_slice, EqualityConstraint());
-          }
+          std::vector<int> frame_id = {2};
+          FrameTranslationResidual frame_residual = FrameTranslationResidual(
+              space.ndx(), nu_, model_handler_.getModel(), contact_pose.at(name).translation(),
+              model_handler_.getFootId(name));
+          FunctionSliceXpr frame_slice = FunctionSliceXpr(frame_residual, frame_id);
+          stm.addConstraint(frame_slice, EqualityConstraint());
         }
       }
       i++;
@@ -148,21 +127,12 @@ namespace simple_mpc
     return stm;
   }
 
-  void
-  KinodynamicsOCP::setReferencePose(const std::size_t t, const std::string &ee_name, const pinocchio::SE3 &pose_ref)
+  void KinodynamicsOCP::setReferencePose(const std::size_t t, const std::string &ee_name, const pinocchio::SE3 &pose_ref)
   {
     CostStack *cs = getCostStack(t);
     QuadraticResidualCost *qrc = cs->getComponent<QuadraticResidualCost>(ee_name + "_pose_cost");
-    if (settings_.force_size == 6)
-    {
-      FramePlacementResidual *cfr = qrc->getResidual<FramePlacementResidual>();
-      cfr->setReference(pose_ref);
-    }
-    else
-    {
-      FrameTranslationResidual *cfr = qrc->getResidual<FrameTranslationResidual>();
-      cfr->setReference(pose_ref.translation());
-    }
+    FrameTranslationResidual *cfr = qrc->getResidual<FrameTranslationResidual>();
+    cfr->setReference(pose_ref.translation());
   }
 
   void KinodynamicsOCP::setReferencePoses(const std::size_t t, const std::map<std::string, pinocchio::SE3> &pose_refs)
@@ -176,33 +146,18 @@ namespace simple_mpc
     for (auto ee_name : model_handler_.getFeetNames())
     {
       QuadraticResidualCost *qrc = cs->getComponent<QuadraticResidualCost>(ee_name + "_pose_cost");
-      if (settings_.force_size == 6)
-      {
-        FramePlacementResidual *cfr = qrc->getResidual<FramePlacementResidual>();
-        cfr->setReference(pose_refs.at(ee_name));
-      }
-      else
-      {
-        FrameTranslationResidual *cfr = qrc->getResidual<FrameTranslationResidual>();
-        cfr->setReference(pose_refs.at(ee_name).translation());
-      }
+      FrameTranslationResidual *cfr = qrc->getResidual<FrameTranslationResidual>();
+      cfr->setReference(pose_refs.at(ee_name).translation());
     }
   }
 
+  // ? 这里是不是有问题，终端成本应该没有_pose_cost
   void KinodynamicsOCP::setTerminalReferencePose(const std::string &ee_name, const pinocchio::SE3 &pose_ref)
   {
     CostStack *cs = getTerminalCostStack();
     QuadraticResidualCost *qrc = cs->getComponent<QuadraticResidualCost>(ee_name + "_pose_cost");
-    if (settings_.force_size == 6)
-    {
-      FramePlacementResidual *cfr = qrc->getResidual<FramePlacementResidual>();
-      cfr->setReference(pose_ref);
-    }
-    else
-    {
-      FrameTranslationResidual *cfr = qrc->getResidual<FrameTranslationResidual>();
-      cfr->setReference(pose_ref.translation());
-    }
+    FrameTranslationResidual *cfr = qrc->getResidual<FrameTranslationResidual>();
+    cfr->setReference(pose_ref.translation());
   }
 
   const pinocchio::SE3 KinodynamicsOCP::getReferencePose(const std::size_t t, const std::string &ee_name)
