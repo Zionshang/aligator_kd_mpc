@@ -22,7 +22,7 @@ int main(int argc, char const *argv[])
         0, 0.72, -1.44,
         0, 0.72, -1.44,
         VectorXd::Zero(model.nv);
-    std::string base_frame_name = "base_link";
+    std::string base_frame_name = "floating_base_joint";
     RobotModelHandler model_handler(model, reference_state.head(model.nq), base_frame_name);
     model_handler.addFoot("FL_foot_link", base_frame_name,
                           SE3(Quaterniond::Identity(), Vector3d(0.3015, 0.1865, 0)));
@@ -139,11 +139,11 @@ int main(int argc, char const *argv[])
     mpc.generateCycleHorizon(contact_phases);
 
     Vector6d v_base;
-    v_base << 0.2, 0, 0, 0, 0, 0;
+    v_base << 0, 0, 0, 0, 0, 0;
     mpc.setVelocityBase(v_base);
     VectorXd x_measured = reference_state;
     std::vector<VectorXd> x_logger;
-    double sim_time = 10; // second;
+    double sim_time = 5; // second;
 
     for (size_t i = 0; i < int(sim_time / mpc_settings.timestep); i++)
     {
