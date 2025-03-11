@@ -10,7 +10,7 @@ namespace simple_mpc
 {
 
   RobotModelHandler::RobotModelHandler(
-      const Model &model, const Eigen::VectorXd reference_configuration, const std::string &base_frame_name)
+      const Model &model, const std::string &reference_configuration_name, const std::string &base_frame_name)
       : model_(model)
   {
     // Root frame id
@@ -18,7 +18,7 @@ namespace simple_mpc
 
     // Set reference state
     reference_state_.resize(model_.nq + model_.nv);
-    reference_state_ << reference_configuration, Eigen::VectorXd::Zero(model_.nv);
+    reference_state_ << model_.referenceConfigurations[reference_configuration_name], Eigen::VectorXd::Zero(model_.nv);
 
     // Mass
     mass_ = pinocchio::computeTotalMass(model_);
@@ -37,7 +37,7 @@ namespace simple_mpc
     auto new_frame =
         pinocchio::Frame(foot_name + "_ref", parent_joint, placement_reference_frame_id, placement, pinocchio::OP_FRAME);
     auto frame_id = model_.addFrame(new_frame);
-    
+
     ref_feet_ids_.push_back(frame_id);
 
     return frame_id;

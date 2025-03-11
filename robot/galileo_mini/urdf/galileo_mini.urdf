@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <robot name="galileo_mini_description">
-  <link name="world" />
+  <!-- <link name="world" />
   <joint name="floating_base_joint" type="floating">
     <origin xyz="0 0 0" rpy="0 0 0" />
     <parent link="world" />
     <child link="base_link" />
-  </joint>
+  </joint> -->
   <link name="base_link">
     <inertial>
       <origin
@@ -630,7 +630,7 @@
       </geometry>
     </collision>
   </link>
-  <joint name="RR_foot_joint" type="fixed">
+  <joint name="HR_foot_joint" type="fixed">
     <origin
       xyz="0.032939 0 -0.26149"
       rpy="0 0 0" />

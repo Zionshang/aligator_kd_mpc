@@ -74,7 +74,7 @@ namespace simple_mpc
      * @param reference_configuration_name Reference configuration to use
      */
     RobotModelHandler(
-        const Model &model, const Eigen::VectorXd reference_configuration, const std::string &base_frame_name);
+        const Model &model, const std::string &reference_configuration_name, const std::string &base_frame_name);
 
     /**
      * @brief

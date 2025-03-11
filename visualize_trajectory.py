@@ -4,11 +4,13 @@ import pandas as pd
 import time
 from pinocchio.visualize import MeshcatVisualizer
 
-csv_path = "/home/zishang/cpp_workspace/aligator_kd_mpc/build/mpc_kinodynamics_result.csv"
+csv_path = (
+    "/home/zishang/cpp_workspace/aligator_kd_mpc/build/mpc_kinodynamics_result.csv"
+)
 
 # 读取URDF文件和创建机器人模型
-urdf_path = "/home/zishang/cpp_workspace/aligator_kd_mpc/robot/galileo_mini/robot.urdf"
-model = pin.buildModelFromUrdf(urdf_path)
+urdf_path = "/home/zishang/cpp_workspace/aligator_kd_mpc/robot/galileo_mini/urdf/galileo_mini.urdf"
+model = pin.buildModelFromUrdf(urdf_path, pin.JointModelFreeFlyer())
 visual_model = pin.buildGeomFromUrdf(model, urdf_path, pin.GeometryType.VISUAL)
 collision_model = pin.buildGeomFromUrdf(model, urdf_path, pin.GeometryType.COLLISION)
 
@@ -21,15 +23,15 @@ viz.viewer.open()
 try:
     trajectory_data = pd.read_csv(csv_path, header=None)
     x_trajectory = trajectory_data.values
-    q_trajectory = x_trajectory[:, :model.nq]
-    
-    while(True):
+    q_trajectory = x_trajectory[:, : model.nq]
+
+    while True:
         for q in q_trajectory:
             viz.display(q)
             time.sleep(0.01)  # 可调整显示速度
         time.sleep(1)  # 可调整显示速度
 
-        
+
 except FileNotFoundError:
     print("找不到轨迹文件：trajectory_results.csv")
 except Exception as e:

@@ -271,7 +271,6 @@ namespace simple_mpc
   {
     for (auto const &name : ee_names_)
     {
-      std::cout << "name: " << name << std::endl;
       int foot_land_time = -1;
       if (!foot_land_times_.at(name).empty())
         foot_land_time = foot_land_times_.at(name)[0];
@@ -281,21 +280,17 @@ namespace simple_mpc
         update = false;
 
       // Use the Raibert heuristics to compute the next foot pose
-      twist_vect_[0] =
-          -(data_handler_->getRefFootPose(name).translation()[1] - data_handler_->getBaseFramePose().translation()[1]);
-      twist_vect_[1] =
-          data_handler_->getRefFootPose(name).translation()[0] - data_handler_->getBaseFramePose().translation()[0];
+      twist_vect_[0] = -(data_handler_->getRefFootPose(name).translation()[1] - data_handler_->getBaseFramePose().translation()[1]);
+      twist_vect_[1] = data_handler_->getRefFootPose(name).translation()[0] - data_handler_->getBaseFramePose().translation()[0];
       next_pose_.head(2) = data_handler_->getRefFootPose(name).translation().head(2);
       next_pose_.head(2) += (velocity_base_.head(2) + velocity_base_[5] * twist_vect_) * (settings_.T_fly + settings_.T_contact) * settings_.timestep;
       next_pose_[2] = data_handler_->getFootPose(name).translation()[2];
-      std::cout << "next_pose_: " << next_pose_.transpose() << std::endl;
       foot_trajectories_.updateTrajectory(
           update, foot_land_time, data_handler_->getFootPose(name).translation(), next_pose_, name);
       pinocchio::SE3 pose = pinocchio::SE3::Identity();
       for (unsigned long time = 0; time < ocp_handler_->getSize(); time++)
       {
         pose.translation() = foot_trajectories_.getReference(name)[time];
-        std::cout << "pose: " << pose.translation().transpose() << std::endl;
         setReferencePose(time, name, pose);
       }
     }
