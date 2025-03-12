@@ -155,7 +155,7 @@ int main(int argc, char const *argv[])
 
     VectorXd x_measured = model_handler.getReferenceState();
     std::vector<VectorXd> x_logger;
-    double sim_time = 5; // second;
+    double sim_time = 0.05; // second;
     for (size_t i = 0; i < int(sim_time / mpc_settings.timestep); i++)
     {
         auto start = std::chrono::high_resolution_clock::now();

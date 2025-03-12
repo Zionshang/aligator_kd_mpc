@@ -112,10 +112,12 @@ namespace simple_mpc
       foot_land_times_.insert({name, std::vector<int>()});
       for (size_t i = 1; i < contact_states_.size(); i++)
       {
+        // 支撑腿变为摆动腿
         if (!contact_states_[i].at(name) and contact_states_[i - 1].at(name))
         {
           foot_takeoff_times_.at(name).push_back((int)(i + ocp_handler_->getSize())); //? 为什么要加上ocp_handler_->getSize()？
         }
+        // 从摆动腿变为支撑腿
         if (contact_states_[i].at(name) and !contact_states_[i - 1].at(name))
         {
           foot_land_times_.at(name).push_back((int)(i + ocp_handler_->getSize()));
@@ -123,7 +125,7 @@ namespace simple_mpc
       }
       // 处理时间窗口首尾之间的状态跳变
       if (contact_states_.back().at(name) and !contact_states_[0].at(name))
-        foot_takeoff_times_.at(name).push_back((int)(contact_states_.size() - 1 + ocp_handler_->getSize()));
+        foot_takeoff_times_.at(name).push_back((int)(contact_states_.size() - 1 + ocp_handler_->getSize())); // ?这里是否需要减一？
       if (!contact_states_.back().at(name) and contact_states_[0].at(name))
         foot_land_times_.at(name).push_back((int)(contact_states_.size() - 1 + ocp_handler_->getSize()));
     }
@@ -219,7 +221,7 @@ namespace simple_mpc
     {
 
       ocp_handler_->getProblem().replaceStageCircular(*cycle_horizon_[0]);
-      solver_->cycleProblem(ocp_handler_->getProblem(), cycle_horizon_data_[0]);
+      solver_->cycleProblem(ocp_handler_->getProblem(), cycle_horizon_data_[0]); // ? 每次都是必须的吗？
 
       rotate_vec_left(cycle_horizon_);
       rotate_vec_left(cycle_horizon_data_);
@@ -228,7 +230,7 @@ namespace simple_mpc
       {
         if (!contact_states_[contact_states_.size() - 1].at(name) and
             contact_states_[contact_states_.size() - 2].at(name))
-          foot_takeoff_times_.at(name).push_back((int)(contact_states_.size() + ocp_handler_->getSize()));
+          foot_takeoff_times_.at(name).push_back((int)(contact_states_.size() + ocp_handler_->getSize())); // ? 为什么要加上ocp_handler_->getSize()？
 
         if (contact_states_[contact_states_.size() - 1].at(name) and
             !contact_states_[contact_states_.size() - 2].at(name))
@@ -244,15 +246,17 @@ namespace simple_mpc
       rotate_vec_left(standing_horizon_);
       rotate_vec_left(standing_horizon_data_);
 
-      updateCycleTiming(true);
+      updateCycleTiming(true); // 看看给true后会发生什么
     }
   }
 
   // ? updateOnlyHorizon是干什么的？
+  // updateOnlyHorizon: 只更新mpc预测周期内的时间，不更新整个stage_models周期
   void MPC::updateCycleTiming(const bool updateOnlyHorizon)
   {
     for (auto const &name : ee_names_)
     {
+      // 随着时间窗口的推进而向前“平移”
       for (size_t i = 0; i < foot_land_times_.at(name).size(); i++)
       {
         if (!updateOnlyHorizon or foot_land_times_.at(name)[i] < (int)ocp_handler_->getSize())
@@ -269,6 +273,16 @@ namespace simple_mpc
       if (!foot_takeoff_times_.at(name).empty() and foot_takeoff_times_.at(name)[0] < 0)
         foot_takeoff_times_.at(name).erase(foot_takeoff_times_.at(name).begin());
     }
+    std::cout << "foot_land_times_:" << std::endl;
+    for (const auto &pair : foot_land_times_)
+    {
+      std::cout << pair.first << ": ";
+      for (const auto &time : pair.second)
+      {
+        std::cout << time << " ";
+      }
+      std::cout << std::endl;
+    }
   }
 
   void MPC::updateStepTrackerReferences()
@@ -278,7 +292,7 @@ namespace simple_mpc
       int foot_land_time = -1;
       if (!foot_land_times_.at(name).empty())
         foot_land_time = foot_land_times_.at(name)[0];
-
+      std::cout << "name: " << name << " foot_land_time: " << foot_land_time << std::endl;
       bool update = true;
       if (foot_land_time < settings_.T_fly)
         update = false;
@@ -298,6 +312,7 @@ namespace simple_mpc
       }
     }
 
+    // 只设置了最后一个时刻的终端位姿
     ocp_handler_->setVelocityBase(ocp_handler_->getSize() - 1, velocity_base_);
     ocp_handler_->setPoseBase(ocp_handler_->getSize() - 1, pose_base_);
 

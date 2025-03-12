@@ -86,7 +86,10 @@ namespace simple_mpc
     const pinocchio::SE3 getReferencePose(const std::size_t i, const std::string &cost_name) override;
     const Eigen::VectorXd getVelocityBase(const std::size_t t) override;
     const Eigen::VectorXd getPoseBase(const std::size_t t) override;
+
+    // 设置基座速度参考
     void setPoseBase(const std::size_t t, const ConstVectorRef &pose_base) override;
+    // 设置基座速度参考
     void setVelocityBase(const std::size_t t, const ConstVectorRef &velocity_base) override;
     const Eigen::VectorXd getProblemState(const RobotDataHandler &data_handler) override;
     size_t getContactSupport(const std::size_t t) override;

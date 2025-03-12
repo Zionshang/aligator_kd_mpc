@@ -188,6 +188,7 @@ namespace simple_mpc
     void switchToStand();
 
     // Footstep timings for each end effector
+    // todo: foot_takeoff_times_有用吗？
     std::map<std::string, std::vector<int>> foot_takeoff_times_, foot_land_times_;
 
     // Solution vectors for state and control
