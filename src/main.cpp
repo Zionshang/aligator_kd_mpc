@@ -41,7 +41,7 @@ int main(int argc, char const *argv[])
 
     /////////////////////////////////////// 定义权重 ///////////////////////////////////////
     VectorXd w_basepos(6);
-    w_basepos << 0, 0, 100, 10, 10, 0;
+    w_basepos << 10, 10, 100, 10, 10, 0;
     VectorXd w_legpos(3);
     w_legpos << 1, 1, 1;
     VectorXd w_basevel(6);
@@ -52,7 +52,7 @@ int main(int argc, char const *argv[])
     w_x_vec << w_basepos, w_legpos, w_legpos, w_legpos, w_legpos, w_basevel, w_legvel, w_legvel, w_legvel, w_legvel;
 
     VectorXd w_force(3);
-    w_force << 0.01, 0.01, 0.01;
+    w_force << 0.001, 0.001, 0.001;
     VectorXd w_u_vec(4 * force_size + model_handler.getModel().nv - 6);
     w_u_vec << w_force, w_force, w_force, w_force, Eigen::VectorXd::Ones(model_handler.getModel().nv - 6) * 1e-5;
 
@@ -80,7 +80,7 @@ int main(int argc, char const *argv[])
     kd_settings.kinematics_limits = true;
     kd_settings.force_cone = true;
 
-    int T = 50;
+    int T = 25;
     auto kd_problem = std::make_shared<KinodynamicsOCP>(kd_settings, model_handler);
     kd_problem->createProblem(model_handler.getReferenceState(), T, force_size, gravity(2), false);
 
@@ -93,7 +93,7 @@ int main(int argc, char const *argv[])
     mpc_settings.TOL = 1e-4;
     mpc_settings.mu_init = 1e-8;
     mpc_settings.max_iters = 1;
-    mpc_settings.num_threads = 1;
+    mpc_settings.num_threads = 4;
     mpc_settings.T_fly = T_ss;
     mpc_settings.T_contact = T_ds;
     mpc_settings.timestep = kd_settings.timestep;
@@ -129,15 +129,15 @@ int main(int argc, char const *argv[])
         {"HR_foot_link", false},
     };
     std::vector<std::map<std::string, bool>> contact_phases;
-    contact_phases.insert(contact_phases.end(), T_ds, contact_phase_quadru);
-    contact_phases.insert(contact_phases.end(), T_ss, contact_phase_lift_FL);
-    contact_phases.insert(contact_phases.end(), T_ds, contact_phase_quadru);
-    contact_phases.insert(contact_phases.end(), T_ss, contact_phase_lift_FR);
-
+    // contact_phases.insert(contact_phases.end(), T_ds, contact_phase_quadru);
+    // contact_phases.insert(contact_phases.end(), T_ss, contact_phase_lift_FL);
+    // contact_phases.insert(contact_phases.end(), T_ds, contact_phase_quadru);
+    // contact_phases.insert(contact_phases.end(), T_ss, contact_phase_lift_FR);
+    contact_phases.insert(contact_phases.end(), T, contact_phase_quadru);
     mpc.generateCycleHorizon(contact_phases);
 
     Vector6d v_base;
-    v_base << 1, 0, 0, 0, 0, 0;
+    v_base << 0, 0, 0, 0, 0, 0;
     mpc.setVelocityBase(v_base);
 
     IDSettings id_settings;
@@ -153,34 +153,57 @@ int main(int argc, char const *argv[])
     id_settings.verbose = false;
     IDSolver ID_solver(id_settings, model_handler.getModel());
 
-    // VectorXd x_measured(model.nq + model.nv);
-    // WebotsInterface webots_interface;
-    // while (webots_interface.isRunning())
-    // {
-    //     webots_interface.recvState(x_measured);
-
-    //     auto start = std::chrono::high_resolution_clock::now();
-    //     mpc.iterate(x_measured);
-    //     auto end = std::chrono::high_resolution_clock::now();
-    //     std::chrono::duration<double, std::milli> iter_time = end - start;
-    //     std::cout << iter_time.count() << " ms" << std::endl;
-    //     webots_interface.sendCmd(mpc.us_[0]);
-    // }
-
-    VectorXd x_measured = model_handler.getReferenceState();
-    std::vector<VectorXd> x_logger;
-    double sim_time = 0.05; // second;
-    for (size_t i = 0; i < int(sim_time / mpc_settings.timestep); i++)
+    VectorXd x_measured(model.nq + model.nv);
+    WebotsInterface webots_interface;
+    while (webots_interface.isRunning())
     {
+        webots_interface.recvState(x_measured);
+
         auto start = std::chrono::high_resolution_clock::now();
         mpc.iterate(x_measured);
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> iter_time = end - start;
-        std::cout << "Iteration " << i << " took " << iter_time.count() << " ms" << std::endl;
-        x_measured = mpc.xs_[1];
-        x_logger.push_back(x_measured);
+        std::cout << iter_time.count() << " ms" << std::endl;
+
+        mpc.getDataHandler().updateInternalData(x_measured, true); // todo: 为什么要再次更新？
+        VectorXd a = mpc.getStateDerivative(0).tail(model.nv);     // 全身加速度
+        a.tail(model.nv - 6) = mpc.us_[0].tail(model.nv - 6);      // 腿的加速度
+
+        VectorXd force = mpc.us_[0].head(nk * force_size);
+        std::vector<bool> contact_state = kd_problem->getContactState(0);
+        std::cout << "x_measured: " << x_measured.transpose() << std::endl;
+        std::cout << "a: " << a.transpose() << std::endl;
+        std::cout << "force: " << force.transpose() << std::endl;
+        std::cout << "contact_state: " << contact_state[0] << contact_state[1] << contact_state[2] << contact_state[3] << std::endl;
+
+        ID_solver.solveQP(mpc.getDataHandler().getData(),
+                          contact_state,
+                          x_measured.tail(model.nv - 6),
+                          a,
+                          VectorXd::Zero(12),
+                          force,
+                          mpc.getDataHandler().getData().M);
+
+        VectorXd tau = ID_solver.solved_torque_;
+        std::cout << "tau: " << tau.transpose() << std::endl;
+        webots_interface.sendCmd(ID_solver.solved_torque_);
+        std::cout << "--------------------------" << std::endl;
     }
-    saveVectorsToCsv("mpc_kinodynamics_result.csv", x_logger);
+
+    // VectorXd x_measured = model_handler.getReferenceState();
+    // std::vector<VectorXd> x_logger;
+    // double sim_time = 0.05; // second;
+    // for (size_t i = 0; i < int(sim_time / mpc_settings.timestep); i++)
+    // {
+    //     auto start = std::chrono::high_resolution_clock::now();
+    //     mpc.iterate(x_measured);
+    //     auto end = std::chrono::high_resolution_clock::now();
+    //     std::chrono::duration<double, std::milli> iter_time = end - start;
+    //     std::cout << "Iteration " << i << " took " << iter_time.count() << " ms" << std::endl;
+    //     x_measured = mpc.xs_[1];
+    //     x_logger.push_back(x_measured);
+    // }
+    // saveVectorsToCsv("mpc_kinodynamics_result.csv", x_logger);
 
     return 0;
 }

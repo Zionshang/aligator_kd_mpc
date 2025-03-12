@@ -183,7 +183,7 @@ namespace simple_mpc
     {
       return model_handler_;
     }
-    const Data &getData() const
+    Data &getData()
     {
       return data_;
     }
