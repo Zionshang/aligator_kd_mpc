@@ -5,6 +5,7 @@
 #include "utils/project_path.hpp"
 #include "utils/logger.hpp"
 #include "webots_interface.hpp"
+#include "lowlevel-control.hpp"
 
 using namespace simple_mpc;
 using Eigen::Quaterniond;
@@ -138,6 +139,19 @@ int main(int argc, char const *argv[])
     Vector6d v_base;
     v_base << 1, 0, 0, 0, 0, 0;
     mpc.setVelocityBase(v_base);
+
+    IDSettings id_settings;
+    id_settings.contact_ids = model_handler.getFeetIds();
+    id_settings.mu = kd_settings.mu;
+    id_settings.Lfoot = kd_settings.Lfoot;
+    id_settings.Wfoot = kd_settings.Wfoot;
+    id_settings.force_size = kd_settings.force_size;
+    id_settings.kd = 1e-4;
+    id_settings.w_acc = 1;
+    id_settings.w_tau = 0;
+    id_settings.w_force = 100;
+    id_settings.verbose = false;
+    IDSolver ID_solver(id_settings, model_handler.getModel());
 
     // VectorXd x_measured(model.nq + model.nv);
     // WebotsInterface webots_interface;

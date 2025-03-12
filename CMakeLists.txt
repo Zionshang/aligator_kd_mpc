@@ -5,6 +5,8 @@ find_package(pinocchio REQUIRED)
 find_package(aligator REQUIRED)
 find_package(example-robot-data REQUIRED)
 find_package(ndcurves REQUIRED)
+find_package(proxsuite REQUIRED)
+
 include_directories(include)
 
 
@@ -21,6 +23,7 @@ file(GLOB_RECURSE SRC_LIST
   src/ocp-handler.cpp
   src/robot-handler.cpp
   src/webots_interface.cpp
+  src/lowlevel-control.cpp
 )
 add_executable(aligator_kd_mpc ${SRC_LIST} src/main.cpp)
 target_link_libraries(aligator_kd_mpc pinocchio::pinocchio)
@@ -28,6 +31,8 @@ target_link_libraries(aligator_kd_mpc aligator::aligator)
 target_link_libraries(aligator_kd_mpc example-robot-data::example-robot-data)
 target_link_libraries(aligator_kd_mpc ndcurves::ndcurves)
 target_link_libraries(aligator_kd_mpc ${WEBOTSLIBRARIES})
+target_link_libraries(aligator_kd_mpc proxsuite::proxsuite)
+
 
 add_executable(test ${SRC_LIST} test.cpp)
 target_link_libraries(test pinocchio::pinocchio)

@@ -66,6 +66,7 @@ namespace simple_mpc
     updateInternalData(model_handler.getReferenceState(), true);
   }
 
+  //? 什么时候需要更新，什么时候不需要更新？
   void RobotDataHandler::updateInternalData(const ConstVectorRef &x, const bool updateJacobians)
   {
     const Eigen::Block q = x.head(model_handler_.getModel().nq);

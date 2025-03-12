@@ -273,16 +273,16 @@ namespace simple_mpc
       if (!foot_takeoff_times_.at(name).empty() and foot_takeoff_times_.at(name)[0] < 0)
         foot_takeoff_times_.at(name).erase(foot_takeoff_times_.at(name).begin());
     }
-    std::cout << "foot_land_times_:" << std::endl;
-    for (const auto &pair : foot_land_times_)
-    {
-      std::cout << pair.first << ": ";
-      for (const auto &time : pair.second)
-      {
-        std::cout << time << " ";
-      }
-      std::cout << std::endl;
-    }
+    // std::cout << "foot_land_times_:" << std::endl;
+    // for (const auto &pair : foot_land_times_)
+    // {
+    //   std::cout << pair.first << ": ";
+    //   for (const auto &time : pair.second)
+    //   {
+    //     std::cout << time << " ";
+    //   }
+    //   std::cout << std::endl;
+    // }
   }
 
   void MPC::updateStepTrackerReferences()
@@ -292,7 +292,7 @@ namespace simple_mpc
       int foot_land_time = -1;
       if (!foot_land_times_.at(name).empty())
         foot_land_time = foot_land_times_.at(name)[0];
-      std::cout << "name: " << name << " foot_land_time: " << foot_land_time << std::endl;
+      // std::cout << "name: " << name << " foot_land_time: " << foot_land_time << std::endl;
       bool update = true;
       if (foot_land_time < settings_.T_fly)
         update = false;

@@ -133,7 +133,7 @@ namespace simple_mpc
     // getters and setters
     TrajOptProblem &getTrajOptProblem();
 
-    const RobotDataHandler &getDataHandler() const
+    RobotDataHandler &getDataHandler()
     {
       return *data_handler_;
     }
