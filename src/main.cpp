@@ -128,10 +128,11 @@ int main(int argc, char const *argv[])
         {"RR_foot", false},
     };
     std::vector<std::map<std::string, bool>> contact_phases;
-    contact_phases.insert(contact_phases.end(), T_ds, contact_phase_quadru);
-    contact_phases.insert(contact_phases.end(), T_ss, contact_phase_lift_FL);
-    contact_phases.insert(contact_phases.end(), T_ds, contact_phase_quadru);
-    contact_phases.insert(contact_phases.end(), T_ss, contact_phase_lift_FR);
+    // contact_phases.insert(contact_phases.end(), T_ds, contact_phase_quadru);
+    // contact_phases.insert(contact_phases.end(), T_ss, contact_phase_lift_FL);
+    // contact_phases.insert(contact_phases.end(), T_ds, contact_phase_quadru);
+    // contact_phases.insert(contact_phases.end(), T_ss, contact_phase_lift_FR);
+    contact_phases.insert(contact_phases.end(), T, contact_phase_quadru);
     mpc.generateCycleHorizon(contact_phases);
 
     ////////////////////// 定义IDSolver //////////////////////
