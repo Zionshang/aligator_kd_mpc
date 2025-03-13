@@ -5,7 +5,15 @@ find_package(pinocchio REQUIRED)
 find_package(aligator REQUIRED)
 find_package(example-robot-data REQUIRED)
 find_package(ndcurves REQUIRED)
+find_package(proxsuite REQUIRED)
+
 include_directories(include)
+
+# webots
+set(WEBOTS_HOME "/usr/local/webots")
+link_directories(${WEBOTS_HOME}/lib/controller)
+set(WEBOTSLIBRARIES m ${CMAKE_SHARED_LIBRARY_PREFIX}Controller${CMAKE_SHARED_LIBRARY_SUFFIX} ${CMAKE_SHARED_LIBRARY_PREFIX}CppController${CMAKE_SHARED_LIBRARY_SUFFIX})
+include_directories(${WEBOTS_HOME}/include/controller/c ${WEBOTS_HOME}/include/controller/cpp)
 
 file(GLOB_RECURSE SRC_LIST 
     ./src/*.cpp
@@ -15,3 +23,5 @@ target_link_libraries(aligator_kd_mpc pinocchio::pinocchio)
 target_link_libraries(aligator_kd_mpc aligator::aligator)
 target_link_libraries(aligator_kd_mpc example-robot-data::example-robot-data)
 target_link_libraries(aligator_kd_mpc ndcurves::ndcurves)
+target_link_libraries(aligator_kd_mpc ${WEBOTSLIBRARIES})
+target_link_libraries(aligator_kd_mpc proxsuite::proxsuite)

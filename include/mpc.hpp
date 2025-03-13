@@ -91,14 +91,14 @@ namespace simple_mpc
     MPCSettings settings_;
     std::shared_ptr<OCPHandler> ocp_handler_;
 
-    explicit MPC(const MPCSettings & settings, std::shared_ptr<OCPHandler> problem);
+    explicit MPC(const MPCSettings &settings, std::shared_ptr<OCPHandler> problem);
 
     // Generate the cycle walking problem along which we will iterate
     // the receding horizon
-    void generateCycleHorizon(const std::vector<std::map<std::string, bool>> & contact_states);
+    void generateCycleHorizon(const std::vector<std::map<std::string, bool>> &contact_states);
 
     // Perform one iteration of MPC
-    void iterate(const ConstVectorRef & x);
+    void iterate(const ConstVectorRef &x);
 
     void updateCycleTiming(const bool updateOnlyHorizon);
 
@@ -106,24 +106,24 @@ namespace simple_mpc
     void recedeWithCycle();
 
     // Getters and setters
-    void setReferencePose(const std::size_t t, const std::string & ee_name, const pinocchio::SE3 & pose_ref);
+    void setReferencePose(const std::size_t t, const std::string &ee_name, const pinocchio::SE3 &pose_ref);
 
-    void setTerminalReferencePose(const std::string & ee_name, const pinocchio::SE3 & pose_ref);
+    void setTerminalReferencePose(const std::string &ee_name, const pinocchio::SE3 &pose_ref);
 
-    const pinocchio::SE3 getReferencePose(const std::size_t t, const std::string & ee_name) const;
+    const pinocchio::SE3 getReferencePose(const std::size_t t, const std::string &ee_name) const;
 
-    [[deprecated]] void setVelocityBase(const Vector6d & v)
+    [[deprecated]] void setVelocityBase(const Vector6d &v)
     {
       velocity_base_ = v;
     }
 
-    void setPoseBaseFromSE3(const pin::SE3 & pose_ref)
+    void setPoseBaseFromSE3(const pin::SE3 &pose_ref)
     {
       Eigen::Map<pin::SE3::Quaternion> q{pose_base_.tail<4>().data()};
       pose_base_.head<3>() = pose_ref.translation();
       q = pose_ref.rotation();
     }
-    [[deprecated]] void setPoseBase(const Vector7d & pose_ref)
+    [[deprecated]] void setPoseBase(const Vector7d &pose_ref)
     {
       pose_base_ = pose_ref;
     }
@@ -131,28 +131,28 @@ namespace simple_mpc
     ConstVectorRef getPoseBase(const std::size_t t) const;
 
     // getters and setters
-    TrajOptProblem & getTrajOptProblem();
+    TrajOptProblem &getTrajOptProblem();
 
-    const RobotDataHandler & getDataHandler() const
+    RobotDataHandler &getDataHandler()
     {
       return *data_handler_;
     }
-    const RobotModelHandler & getModelHandler() const
+    const RobotModelHandler &getModelHandler() const
     {
       return ocp_handler_->getModelHandler();
     }
 
-    std::vector<std::shared_ptr<StageModel>> & getCycleHorizon()
+    std::vector<std::shared_ptr<StageModel>> &getCycleHorizon()
     {
       return cycle_horizon_;
     }
 
-    inline bool getCyclingContactState(const std::size_t t, const std::string & ee_name) const
+    inline bool getCyclingContactState(const std::size_t t, const std::string &ee_name) const
     {
       return contact_states_[t].at(ee_name);
     }
 
-    inline int getFootTakeoffCycle(const std::string & ee_name) const
+    inline int getFootTakeoffCycle(const std::string &ee_name) const
     {
       if (foot_takeoff_times_.at(ee_name).empty())
       {
@@ -163,7 +163,7 @@ namespace simple_mpc
         return foot_takeoff_times_.at(ee_name)[0];
       }
     }
-    inline int getFootLandCycle(const std::string & ee_name) const
+    inline int getFootLandCycle(const std::string &ee_name) const
     {
       if (foot_land_times_.at(ee_name).empty())
       {
@@ -177,13 +177,13 @@ namespace simple_mpc
 
     const ConstVectorRef getStateDerivative(const std::size_t t)
     {
-      ExplicitIntegratorData * int_data =
-        dynamic_cast<ExplicitIntegratorData *>(&*solver_->workspace_.problem_data.stage_data[t]->dynamics_data);
+      ExplicitIntegratorData *int_data =
+          dynamic_cast<ExplicitIntegratorData *>(&*solver_->workspace_.problem_data.stage_data[t]->dynamics_data);
       assert(int_data != nullptr);
       return int_data->continuous_data->xdot_;
     }
 
-    void switchToWalk(const Vector6d & velocity_base);
+    void switchToWalk(const Vector6d &velocity_base);
 
     void switchToStand();
 
