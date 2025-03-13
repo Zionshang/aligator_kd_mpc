@@ -87,7 +87,7 @@ int main(int argc, char const *argv[])
     int T_ss = 30;
 
     MPCSettings mpc_settings;
-    mpc_settings.swing_apex = 0.15;
+    mpc_settings.swing_apex = 0.30;
     mpc_settings.support_force = -model_handler.getMass() * gravity(2);
     mpc_settings.TOL = 1e-4;
     mpc_settings.mu_init = 1e-8;
@@ -128,11 +128,11 @@ int main(int argc, char const *argv[])
         {"RR_foot", false},
     };
     std::vector<std::map<std::string, bool>> contact_phases;
-    // contact_phases.insert(contact_phases.end(), T_ds, contact_phase_quadru);
-    // contact_phases.insert(contact_phases.end(), T_ss, contact_phase_lift_FL);
-    // contact_phases.insert(contact_phases.end(), T_ds, contact_phase_quadru);
-    // contact_phases.insert(contact_phases.end(), T_ss, contact_phase_lift_FR);
-    contact_phases.insert(contact_phases.end(), T, contact_phase_quadru);
+    contact_phases.insert(contact_phases.end(), T_ds, contact_phase_quadru);
+    contact_phases.insert(contact_phases.end(), T_ss, contact_phase_lift_FL);
+    contact_phases.insert(contact_phases.end(), T_ds, contact_phase_quadru);
+    contact_phases.insert(contact_phases.end(), T_ss, contact_phase_lift_FR);
+    // contact_phases.insert(contact_phases.end(), T, contact_phase_quadru);
     mpc.generateCycleHorizon(contact_phases);
 
     ////////////////////// 定义IDSolver //////////////////////
@@ -197,16 +197,16 @@ int main(int argc, char const *argv[])
 
     // ////////////////////// 理想仿真 //////////////////////
     // VectorXd v(6);
-    // v << 0.2, 0, 0, 0, 0, 0;
+    // v << 0.5, 0, 0, 0, 0, 0;
     // mpc.velocity_base_ = v;
     // VectorXd x_measure = model_handler.getReferenceState();
-    // double sim_time = 5;
+    // double sim_time = mpc_settings.timestep * 80;
     // std::vector<VectorXd> x_logger;
 
     // for (int i = 0; i < int(sim_time / mpc_settings.timestep); i++)
     // {
     //     mpc.iterate(x_measure);
-    //     std::cout << "mpc.us_[0] = " << mpc.us_[0].transpose() << std::endl;
+    //     std::cout << "i: " << i << " FL_foot ref pose: " << mpc.getReferencePose(0, "FL_foot").translation().transpose() << std::endl;
     //     x_measure = mpc.xs_[1];
     //     x_logger.push_back(x_measure);
     // }

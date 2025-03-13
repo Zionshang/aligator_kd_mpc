@@ -34,7 +34,7 @@ try:
     while True:
         for q in q_trajectory:
             viz.display(q)
-            time.sleep(0.01)  # 可调整显示速度
+            time.sleep(0.1)  # 可调整显示速度
         time.sleep(1)  # 可调整显示速度
 
 
