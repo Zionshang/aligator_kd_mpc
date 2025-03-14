@@ -47,7 +47,7 @@ namespace simple_mpc
     S_.bottomRows(model_.nv - 6).diagonal().setOnes();
 
     // Initialize full contact Jacobian
-    Jc_ = Eigen::MatrixXd::Zero(force_dim_, model_.nv);
+    Jc_ = Eigen::MatrixXd::Zero(force_dim_, model_.nv); // ?也包含摆动腿吗？
 
     // Initialize derivative of contact Jacobian
     Jdot_ = Eigen::MatrixXd::Zero(6, model_.nv);

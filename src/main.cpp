@@ -5,6 +5,8 @@
 #include "lowlevel-control.hpp"
 #include "webots_interface.hpp"
 #include "utils/logger.hpp"
+#include <pinocchio/algorithm/kinematics.hpp>
+#include <pinocchio/algorithm/frames.hpp>
 
 using namespace simple_mpc;
 using Eigen::Quaterniond;
@@ -159,6 +161,8 @@ int main(int argc, char const *argv[])
     int itr = 0;
     VectorXd a0, a1, forces0, forces1;
     std::vector<bool> contact_states;
+    std::vector<VectorXd> x_logger, lf_foot_ref_logger, lf_foot_logger;
+
     while (webots.isRunning())
     {
         webots.recvState(x_measure);
@@ -193,6 +197,11 @@ int main(int argc, char const *argv[])
         webots.sendCmd(qp.solved_torque_);
 
         itr++;
+
+        lf_foot_ref_logger.push_back(mpc.getReferencePose(0, "FL_foot").translation());
+        pinocchio::forwardKinematics(model_handler.getModel(), mpc.getDataHandler().getData(), x_measure.head(model_handler.getModel().nq));
+        pinocchio::updateFramePlacements(model_handler.getModel(), mpc.getDataHandler().getData());
+        lf_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("FL_foot")].translation());
     }
 
     // ////////////////////// 理想仿真 //////////////////////
@@ -200,8 +209,8 @@ int main(int argc, char const *argv[])
     // v << 0.5, 0, 0, 0, 0, 0;
     // mpc.velocity_base_ = v;
     // VectorXd x_measure = model_handler.getReferenceState();
-    // double sim_time = mpc_settings.timestep * 80;
-    // std::vector<VectorXd> x_logger;
+    // double sim_time = mpc_settings.timestep * T * 10;
+    // std::vector<VectorXd> x_logger, lf_foot_ref_logger, lf_foot_logger;
 
     // for (int i = 0; i < int(sim_time / mpc_settings.timestep); i++)
     // {
@@ -209,8 +218,15 @@ int main(int argc, char const *argv[])
     //     std::cout << "i: " << i << " FL_foot ref pose: " << mpc.getReferencePose(0, "FL_foot").translation().transpose() << std::endl;
     //     x_measure = mpc.xs_[1];
     //     x_logger.push_back(x_measure);
+    //     lf_foot_ref_logger.push_back(mpc.getReferencePose(0, "FL_foot").translation());
+    //     pinocchio::forwardKinematics(model_handler.getModel(), mpc.getDataHandler().getData(), x_measure.head(model_handler.getModel().nq));
+    //     pinocchio::updateFramePlacements(model_handler.getModel(), mpc.getDataHandler().getData());
+    //     lf_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("FL_foot")].translation());
     // }
+
     // saveVectorsToCsv("mpc_kinodynamics_result.csv", x_logger);
+    saveVectorsToCsv("lf_foot_ref_logger.csv", lf_foot_ref_logger);
+    saveVectorsToCsv("lf_foot_logger.csv", lf_foot_logger);
 
     return 0;
 }
