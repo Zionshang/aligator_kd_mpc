@@ -148,7 +148,9 @@ int main(int argc, char const *argv[])
     id_settings.w_acc = 1;
     id_settings.w_tau = 0;
     id_settings.w_force = 100;
-    id_settings.verbose = false;
+    id_settings.verbose = false,
+    id_settings.kp_sw = 350 * Matrix3d::Identity();
+    id_settings.kd_sw = 37 * Matrix3d::Identity();
     IDSolver qp(id_settings, model_handler.getModel());
 
     ////////////////////// 设置仿真 //////////////////////
@@ -159,7 +161,7 @@ int main(int argc, char const *argv[])
     VectorXd x_measure = model_handler.getReferenceState();
     WebotsInterface webots;
     int itr = 0;
-    VectorXd a0, a1, forces0, forces1;
+    VectorXd a0, a1, forces0, forces1, q0, q1, v0, v1;
     std::vector<bool> contact_states;
     std::vector<VectorXd> x_logger, lf_foot_ref_logger, lf_foot_logger;
 
@@ -176,6 +178,10 @@ int main(int argc, char const *argv[])
             a1 = mpc.getStateDerivative(1).tail(model.nv);
             a0.head(12) = mpc.us_[0].tail(12);
             a1.head(12) = mpc.us_[1].tail(12);
+            q0 = mpc.xs_[0].head(model.nq);
+            q1 = mpc.xs_[1].head(model.nq);
+            v0 = mpc.xs_[0].tail(model.nv);
+            v1 = mpc.xs_[1].tail(model.nv);
             forces0 = mpc.us_[0].head(nk * force_size);
             forces1 = mpc.us_[1].head(nk * force_size);
             contact_states = mpc.ocp_handler_->getContactState(0);
@@ -184,16 +190,19 @@ int main(int argc, char const *argv[])
         mpc.getDataHandler().updateInternalData(x_measure, true);
         VectorXd a_interp = (double(N_simu) - itr) / double(N_simu) * a0 + itr / double(N_simu) * a1;
         VectorXd f_interp = (double(N_simu) - itr) / double(N_simu) * forces0 + itr / double(N_simu) * forces1;
+        VectorXd q_interp = (double(N_simu) - itr) / double(N_simu) * q0 + itr / double(N_simu) * q1;
+        VectorXd v_interp = (double(N_simu) - itr) / double(N_simu) * v0 + itr / double(N_simu) * v1;
 
         qp.solveQP(
             mpc.getDataHandler().getData(),
             contact_states,
             x_measure.tail(model.nv),
+            q_interp,
+            v_interp,
             a_interp,
             VectorXd::Zero(12),
             f_interp,
             mpc.getDataHandler().getData().M);
-        std::cout << "qp.solved_forces_ = " << qp.solved_forces_.transpose() << std::endl;
         webots.sendCmd(qp.solved_torque_);
 
         itr++;

@@ -21,6 +21,8 @@
 namespace simple_mpc
 {
   using namespace proxsuite;
+  using Eigen::Matrix3d;
+  using Eigen::Vector3d;
 
   struct IDSettings
   {
@@ -34,6 +36,9 @@ namespace simple_mpc
     double w_tau;                        //< Weight for torque regularization
     double w_force;                      //< Weight for force regularization
     bool verbose;                        //< Print solver information
+
+    Matrix3d kp_sw; //< Proportional gains for swing foot tracking
+    Matrix3d kd_sw; //< Derivative gains for swing foot tracking
   };
 
   class IDSolver
@@ -44,6 +49,8 @@ namespace simple_mpc
   protected:
     IDSettings settings_;
     pin::Model model_;
+    pin::Data data_ref_;
+
     int force_dim_;
     int nforcein_;
     int nk_;
@@ -58,16 +65,19 @@ namespace simple_mpc
     Eigen::VectorXd l_;
     Eigen::VectorXd u_;
 
-    Eigen::MatrixXd Jc_;
-    Eigen::VectorXd gamma_;
+    Eigen::MatrixXd J_;
+    Eigen::VectorXd Jdot_qdot_;
     Eigen::MatrixXd Jdot_;
+    Eigen::VectorXd a_feet_;
 
     // Internal matrix computation
     void computeMatrices(
         pin::Data &data,
         const std::vector<bool> &contact_state,
         const ConstVectorRef &v,
-        const ConstVectorRef &a,
+        const ConstVectorRef &q_ref,
+        const ConstVectorRef &v_ref,
+        const ConstVectorRef &a_ref,
         const ConstVectorRef &tau,
         const ConstVectorRef &forces,
         const ConstMatrixRef &M);
@@ -79,7 +89,9 @@ namespace simple_mpc
         pin::Data &data,
         const std::vector<bool> &contact_state,
         const ConstVectorRef &v,
-        const ConstVectorRef &a,
+        const ConstVectorRef &q_ref,
+        const ConstVectorRef &v_ref,
+        const ConstVectorRef &a_ref,
         const ConstVectorRef &tau,
         const ConstVectorRef &forces,
         const ConstMatrixRef &M);
