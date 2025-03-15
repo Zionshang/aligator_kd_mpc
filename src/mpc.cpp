@@ -108,24 +108,15 @@ namespace simple_mpc
     // Generate contact switch timings 腾空与落地时刻记录
     for (auto const &name : ee_names_)
     {
-      foot_takeoff_times_.insert({name, std::vector<int>()});
       foot_land_times_.insert({name, std::vector<int>()});
       for (size_t i = 1; i < contact_states_.size(); i++)
       {
-        // 支撑腿变为摆动腿
-        if (!contact_states_[i].at(name) and contact_states_[i - 1].at(name))
-        {
-          foot_takeoff_times_.at(name).push_back((int)(i + ocp_handler_->getSize())); //? 为什么要加上ocp_handler_->getSize()？
-        }
         // 从摆动腿变为支撑腿
         if (contact_states_[i].at(name) and !contact_states_[i - 1].at(name))
         {
           foot_land_times_.at(name).push_back((int)(i + ocp_handler_->getSize()));
         }
       }
-      // 处理时间窗口首尾之间的状态跳变
-      if (contact_states_.back().at(name) and !contact_states_[0].at(name))
-        foot_takeoff_times_.at(name).push_back((int)(contact_states_.size() - 1 + ocp_handler_->getSize())); // ?这里是否需要减一？
       if (!contact_states_.back().at(name) and contact_states_[0].at(name))
         foot_land_times_.at(name).push_back((int)(contact_states_.size() - 1 + ocp_handler_->getSize()));
     }
@@ -228,10 +219,6 @@ namespace simple_mpc
       rotate_vec_left(contact_states_);
       for (auto const &name : ee_names_)
       {
-        if (!contact_states_[contact_states_.size() - 1].at(name) and
-            contact_states_[contact_states_.size() - 2].at(name))
-          foot_takeoff_times_.at(name).push_back((int)(contact_states_.size() + ocp_handler_->getSize())); // ? 为什么要加上ocp_handler_->getSize()？
-
         if (contact_states_[contact_states_.size() - 1].at(name) and
             !contact_states_[contact_states_.size() - 2].at(name))
           foot_land_times_.at(name).push_back((int)(contact_states_.size() + ocp_handler_->getSize()));
@@ -264,14 +251,6 @@ namespace simple_mpc
       }
       if (!foot_land_times_.at(name).empty() and foot_land_times_.at(name)[0] < 0)
         foot_land_times_.at(name).erase(foot_land_times_.at(name).begin());
-
-      for (size_t i = 0; i < foot_takeoff_times_.at(name).size(); i++)
-        if (!updateOnlyHorizon or foot_takeoff_times_.at(name)[i] < (int)ocp_handler_->getSize())
-        {
-          foot_takeoff_times_.at(name)[i] -= 1;
-        }
-      if (!foot_takeoff_times_.at(name).empty() and foot_takeoff_times_.at(name)[0] < 0)
-        foot_takeoff_times_.at(name).erase(foot_takeoff_times_.at(name).begin());
     }
     // std::cout << "foot_land_times_:" << std::endl;
     // for (const auto &pair : foot_land_times_)

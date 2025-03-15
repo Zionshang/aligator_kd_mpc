@@ -155,7 +155,7 @@ int main(int argc, char const *argv[])
     ////////////////////// 设置仿真 //////////////////////
     int N_simu = 10;
     VectorXd v(6);
-    v << 0, 0, 0, 0, 0, 0;
+    v << 0.8, 0, 0, 0, 0, 0;
     mpc.velocity_base_ = v;
     VectorXd x_measure = model_handler.getReferenceState();
     WebotsInterface webots;

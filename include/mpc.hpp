@@ -152,17 +152,6 @@ namespace simple_mpc
       return contact_states_[t].at(ee_name);
     }
 
-    inline int getFootTakeoffCycle(const std::string &ee_name) const
-    {
-      if (foot_takeoff_times_.at(ee_name).empty())
-      {
-        return -1;
-      }
-      else
-      {
-        return foot_takeoff_times_.at(ee_name)[0];
-      }
-    }
     inline int getFootLandCycle(const std::string &ee_name) const
     {
       if (foot_land_times_.at(ee_name).empty())
@@ -188,8 +177,7 @@ namespace simple_mpc
     void switchToStand();
 
     // Footstep timings for each end effector
-    // todo: foot_takeoff_times_有用吗？
-    std::map<std::string, std::vector<int>> foot_takeoff_times_, foot_land_times_;
+    std::map<std::string, std::vector<int>> foot_land_times_;
 
     // Solution vectors for state and control
     std::vector<VectorXd> xs_;
