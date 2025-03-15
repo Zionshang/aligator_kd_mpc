@@ -10,10 +10,10 @@ WebotsInterface::WebotsInterface()
     initSend();
 
     last_q_.resize(joint_sensor_name_.size());
-    last_q_ << 0.0, 0.72, -1.44,
-        0.0, 0.72, -1.44,
-        0.0, 0.72, -1.44,
-        0.0, 0.72, -1.44;
+    last_q_ << 0.068, 0.785, -1.44,
+        -0.068, 0.785, -1.44,
+        0.068, 0.785, -1.44,
+        -0.068, 0.785, -1.44;
 }
 
 WebotsInterface::~WebotsInterface()
@@ -33,7 +33,7 @@ void WebotsInterface::recvState(Eigen::VectorXd &state_vector)
     Eigen::Vector3d robotPos = Eigen::Map<const Eigen::Vector3d>(robot_node_->getPosition()); // expressed in WORLD frame
     Eigen::Vector3d robotVel = Eigen::Map<const Eigen::Vector3d>(robot_node_->getVelocity()); // expressed in WORLD frame
     Eigen::Vector3d robotVel_B = quaternion.toRotationMatrix().transpose() * robotVel;        // expressed in BODY frame
-    
+
     q.head(6) << robotPos, quaternion.coeffs();
     v.head(6) << robotVel_B, angular_vel_B;
 

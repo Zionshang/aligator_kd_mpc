@@ -16,6 +16,7 @@ namespace simple_mpc
   IDSolver::IDSolver(const IDSettings &settings, const pin::Model &model)
       : qp_(1, 1, 1), settings_(settings), model_(model)
   {
+    data_ref_ = pin::Data(model_);
 
     // Set the dimension of the problem
     nk_ = (int)settings.contact_ids.size();
@@ -46,14 +47,17 @@ namespace simple_mpc
     S_ = Eigen::MatrixXd::Zero(model_.nv, model_.nv - 6);
     S_.bottomRows(model_.nv - 6).diagonal().setOnes();
 
-    // Initialize full contact Jacobian
-    Jc_ = Eigen::MatrixXd::Zero(force_dim_, model_.nv);
+    // Initialize full feet stacked Jacobian
+    J_ = Eigen::MatrixXd::Zero(force_dim_, model_.nv); // ?也包含摆动腿吗？
 
     // Initialize derivative of contact Jacobian
     Jdot_ = Eigen::MatrixXd::Zero(6, model_.nv);
 
-    // Initialize acceleration drift
-    gamma_ = Eigen::VectorXd::Zero(force_dim_);
+    // Initialize product of Jdot and qdot
+    Jdot_qdot_ = Eigen::VectorXd::Zero(force_dim_);
+
+    // Initialize desired feet acceleration
+    a_feet_ = Eigen::VectorXd::Zero(force_dim_);
 
     // Create the block matrix used for contact force cone
     Cmin_.resize(nforcein_, settings.force_size);
@@ -95,17 +99,19 @@ namespace simple_mpc
   }
 
   void IDSolver::computeMatrices(
-      pinocchio::Data &data,
+      pin::Data &data,
       const std::vector<bool> &contact_state,
       const ConstVectorRef &v,
-      const ConstVectorRef &a,
+      const ConstVectorRef &q_ref,
+      const ConstVectorRef &v_ref,
+      const ConstVectorRef &a_ref,
       const ConstVectorRef &tau,
       const ConstVectorRef &forces,
       const ConstMatrixRef &M)
   {
     // Reset matrices
-    Jc_.setZero();
-    gamma_.setZero();
+    J_.setZero();
+    Jdot_qdot_.setZero();
     l_.head(nforcein_ * nk_).setZero();
     C_.block(0, 0, nforcein_ * nk_, model_.nv + force_dim_).setZero();
 
@@ -117,13 +123,14 @@ namespace simple_mpc
     for (long i = 0; i < nk_; i++)
     {
       Jdot_.setZero();
+      getFrameJacobianTimeVariation(model_, data, settings_.contact_ids[(size_t)i], pin::LOCAL_WORLD_ALIGNED, Jdot_);
+      J_.middleRows(i * settings_.force_size, settings_.force_size) =
+          getFrameJacobian(model_, data, settings_.contact_ids[(size_t)i], pin::LOCAL_WORLD_ALIGNED)
+              .topRows(settings_.force_size);
+      Jdot_qdot_.segment(i * settings_.force_size, settings_.force_size) = Jdot_.topRows(settings_.force_size) * v;
       if (contact_state[(size_t)i])
       {
-        getFrameJacobianTimeVariation(model_, data, settings_.contact_ids[(size_t)i], pin::LOCAL_WORLD_ALIGNED, Jdot_);
-        Jc_.middleRows(i * settings_.force_size, settings_.force_size) =
-            getFrameJacobian(model_, data, settings_.contact_ids[(size_t)i], pin::LOCAL_WORLD_ALIGNED)
-                .topRows(settings_.force_size);
-        gamma_.segment(i * settings_.force_size, settings_.force_size) = Jdot_.topRows(settings_.force_size) * v;
+        a_feet_.segment(i * settings_.force_size, settings_.force_size).setZero();
 
         // Friction cone inequality update
         l_.segment(i * nforcein_, 5) << forces[i * settings_.force_size] - forces[i * settings_.force_size + 2] * settings_.mu,
@@ -142,33 +149,49 @@ namespace simple_mpc
 
         C_.block(i * nforcein_, model_.nv + i * settings_.force_size, nforcein_, settings_.force_size) = Cmin_;
       }
+      else
+      {
+        pin::forwardKinematics(model_, data_ref_, q_ref, v_ref);
+        pin::updateFramePlacements(model_, data_ref_);
+        Vector3d pos_foot_ref = data_ref_.oMf[settings_.contact_ids[(size_t)i]].translation();
+        Vector3d pos_foot = data.oMf[settings_.contact_ids[(size_t)i]].translation();
+        Vector3d vel_foot_ref = pin::getFrameVelocity(model_, data_ref_, settings_.contact_ids[(size_t)i], pin::LOCAL_WORLD_ALIGNED).linear();
+        Vector3d vel_foot = pin::getFrameVelocity(model_, data, settings_.contact_ids[(size_t)i], pin::LOCAL_WORLD_ALIGNED).linear();
+        a_feet_.segment(i * settings_.force_size, settings_.force_size) =
+            settings_.kp_sw * (pos_foot_ref - pos_foot) + settings_.kd_sw * (vel_foot_ref - vel_foot);
+      }
     }
 
     // Update equality matrices
+    // A = [M -J' -S;
+    //      J  0   0]
     A_.topLeftCorner(model_.nv, model_.nv) = M;
-    A_.block(0, model_.nv, model_.nv, force_dim_) = -Jc_.transpose();
+    A_.block(0, model_.nv, model_.nv, force_dim_) = -J_.transpose();
     A_.topRightCorner(model_.nv, model_.nv - 6) = -S_;
-    A_.bottomLeftCorner(force_dim_, model_.nv) = Jc_;
+    A_.bottomLeftCorner(force_dim_, model_.nv) = J_;
 
-    b_.head(model_.nv) = -data.nle - M * a + Jc_.transpose() * forces + S_ * tau;
-    b_.tail(force_dim_) = -gamma_ - Jc_ * a - settings_.kd * Jc_ * v;
+    // b = [-nle - M*a + J'*forces + S*tau;
+    //      -dJdq - J*a  + a_feet]
+    b_.head(model_.nv) = -data.nle - M * a_ref + J_.transpose() * forces + S_ * tau;
+    b_.tail(force_dim_) = -Jdot_qdot_ - J_ * a_ref + a_feet_;
   }
 
   void IDSolver::solveQP(
-      pinocchio::Data &data,
+      pin::Data &data,
       const std::vector<bool> &contact_state,
       const ConstVectorRef &v,
-      const ConstVectorRef &a,
+      const ConstVectorRef &q_ref,
+      const ConstVectorRef &v_ref,
+      const ConstVectorRef &a_ref,
       const ConstVectorRef &tau,
       const ConstVectorRef &forces,
       const ConstMatrixRef &M)
   {
-
-    computeMatrices(data, contact_state, v, a, tau, forces, M);
+    computeMatrices(data, contact_state, v, q_ref, v_ref, a_ref, tau, forces, M);
     qp_.update(H_, g_, A_, b_, C_, l_, u_, false);
     qp_.solve();
 
-    solved_acc_ = a + qp_.results.x.head(model_.nv);
+    solved_acc_ = a_ref + qp_.results.x.head(model_.nv);
     solved_forces_ = forces + qp_.results.x.segment(model_.nv, force_dim_);
     solved_torque_ = tau + qp_.results.x.tail(model_.nv - 6);
   }

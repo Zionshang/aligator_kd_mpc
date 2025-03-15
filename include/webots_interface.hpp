@@ -36,15 +36,15 @@ private:
     webots::InertialUnit *imu_;
     webots::Gyro *gyro_;
 
-    std::string robot_name_ = "GalileoMiniDescription";
-    std::string imu_name_ = "imu";
+    std::string robot_name_ = "go2";
+    std::string imu_name_ = "inertial unit";
     std::string gyro_name_ = "gyro";
-    std::vector<std::string> joint_sensor_name_ = {"FL_abd_joint_sensor", "FL_hip_joint_sensor", "FL_knee_joint_sensor",
-                                                   "FR_abd_joint_sensor", "FR_hip_joint_sensor", "FR_knee_joint_sensor",
-                                                   "HL_abd_joint_sensor", "HL_hip_joint_sensor", "HL_knee_joint_sensor",
-                                                   "HR_abd_joint_sensor", "HR_hip_joint_sensor", "HR_knee_joint_sensor"};
-    std::vector<std::string> joint_motor_name_ = {"FL_abd_joint", "FL_hip_joint", "FL_knee_joint",
-                                                  "FR_abd_joint", "FR_hip_joint", "FR_knee_joint",
-                                                  "HL_abd_joint", "HL_hip_joint", "HL_knee_joint",
-                                                  "HR_abd_joint", "HR_hip_joint", "HR_knee_joint"};
+    std::vector<std::string> joint_sensor_name_ = {"FL_hip_joint_sensor", "FL_thigh_joint_sensor", "FL_calf_joint_sensor",
+                                                   "FR_hip_joint_sensor", "FR_thigh_joint_sensor", "FR_calf_joint_sensor",
+                                                   "RL_hip_joint_sensor", "RL_thigh_joint_sensor", "RL_calf_joint_sensor",
+                                                   "RR_hip_joint_sensor", "RR_thigh_joint_sensor", "RR_calf_joint_sensor"};
+    std::vector<std::string> joint_motor_name_ = {"FL_hip_joint", "FL_thigh_joint", "FL_calf_joint",
+                                                  "FR_hip_joint", "FR_thigh_joint", "FR_calf_joint",
+                                                  "RL_hip_joint", "RL_thigh_joint", "RL_calf_joint",
+                                                  "RR_hip_joint", "RR_thigh_joint", "RR_calf_joint"};
 };
