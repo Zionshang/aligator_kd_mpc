@@ -7,6 +7,7 @@
 #include "utils/logger.hpp"
 #include <pinocchio/algorithm/kinematics.hpp>
 #include <pinocchio/algorithm/frames.hpp>
+#include "wbc/weighted_wbc.hpp"
 
 using namespace simple_mpc;
 using Eigen::Quaterniond;
@@ -130,11 +131,11 @@ int main(int argc, char const *argv[])
         {"RR_foot", false},
     };
     std::vector<std::map<std::string, bool>> contact_phases;
-    contact_phases.insert(contact_phases.end(), T_ds, contact_phase_quadru);
-    contact_phases.insert(contact_phases.end(), T_ss, contact_phase_lift_FL);
-    contact_phases.insert(contact_phases.end(), T_ds, contact_phase_quadru);
-    contact_phases.insert(contact_phases.end(), T_ss, contact_phase_lift_FR);
-    // contact_phases.insert(contact_phases.end(), T, contact_phase_quadru);
+    // contact_phases.insert(contact_phases.end(), T_ds, contact_phase_quadru);
+    // contact_phases.insert(contact_phases.end(), T_ss, contact_phase_lift_FL);
+    // contact_phases.insert(contact_phases.end(), T_ds, contact_phase_quadru);
+    // contact_phases.insert(contact_phases.end(), T_ss, contact_phase_lift_FR);
+    contact_phases.insert(contact_phases.end(), T, contact_phase_quadru);
     mpc.generateCycleHorizon(contact_phases);
 
     ////////////////////// 定义IDSolver //////////////////////
@@ -153,10 +154,22 @@ int main(int argc, char const *argv[])
     id_settings.kd_sw = 37 * Matrix3d::Identity();
     IDSolver qp(id_settings, model_handler.getModel());
 
+    ////////////////////// 定义Weighted WBC //////////////////////
+    WbcSettings wbc_settings;
+    wbc_settings.contact_ids = model_handler.getFeetIds();
+    wbc_settings.mu = kd_settings.mu;
+    wbc_settings.force_size = kd_settings.force_size;
+    wbc_settings.kp_sw = 350 * Matrix3d::Identity();
+    wbc_settings.kd_sw = 37 * Matrix3d::Identity();
+    wbc_settings.w_swing = 100;
+    wbc_settings.w_base = 1;
+    wbc_settings.w_force = 0.01;
+    WeightedWbc wbc(model_handler.getModel(), wbc_settings);
+
     ////////////////////// 设置仿真 //////////////////////
     int N_simu = 10;
     VectorXd v(6);
-    v << 0.2, 0, 0, 0, 0, 0;
+    v << 0, 0, 0, 0, 0, 0;
     mpc.velocity_base_ = v;
     VectorXd x_measure = model_handler.getReferenceState();
     WebotsInterface webots;
@@ -187,30 +200,65 @@ int main(int argc, char const *argv[])
             contact_states = mpc.ocp_handler_->getContactState(0);
             itr = 0;
         }
-        mpc.getDataHandler().updateInternalData(x_measure, true);
         VectorXd a_interp = (double(N_simu) - itr) / double(N_simu) * a0 + itr / double(N_simu) * a1;
         VectorXd f_interp = (double(N_simu) - itr) / double(N_simu) * forces0 + itr / double(N_simu) * forces1;
         VectorXd q_interp = (double(N_simu) - itr) / double(N_simu) * q0 + itr / double(N_simu) * q1;
         VectorXd v_interp = (double(N_simu) - itr) / double(N_simu) * v0 + itr / double(N_simu) * v1;
+        std::cout << "a_interp: " << a_interp.transpose() << std::endl;
+        // mpc.getDataHandler().updateInternalData(x_measure, true);
+        // qp.solveQP(
+        //     mpc.getDataHandler().getData(),
+        //     contact_states,
+        //     x_measure.tail(model.nv),
+        //     q_interp,
+        //     v_interp,
+        //     a_interp,
+        //     VectorXd::Zero(12),
+        //     f_interp,
+        //     mpc.getDataHandler().getData().M);
+        // webots.sendCmd(qp.solved_torque_);
 
-        qp.solveQP(
-            mpc.getDataHandler().getData(),
-            contact_states,
-            x_measure.tail(model.nv),
-            q_interp,
-            v_interp,
-            a_interp,
-            VectorXd::Zero(12),
-            f_interp,
-            mpc.getDataHandler().getData().M);
-        webots.sendCmd(qp.solved_torque_);
+        Vector3d pos_body = x_measure.head(3);
+        Eigen::Vector4d quat_body_tmp = x_measure.segment(3, 4);
+        Eigen::Quaterniond quat_body(quat_body_tmp);
+        Vector3d vel_body = x_measure.segment(model.nq, 3);
+        Vector3d angvel_body = x_measure.segment(model.nq + 3, 3);
+        Vector6d acc_body;
+        Matrix3d kp_pos, kd_pos, kp_ang, kd_ang;
+        kp_pos.setZero();
+        kd_pos.setZero();
+        kp_ang.setZero();
+        kd_ang.setZero();
+        kp_pos.diagonal() << 200, 200, 500;
+        kd_pos.diagonal() << 50, 70, 50;
+        kp_ang.diagonal() << 500, 500, 150;
+        kd_ang.diagonal() << 50, 50, 50;
+        Vector3d pos_body_ref(0.0, 0.0, 0.335);
+        Vector3d vel_body_ref(0.0, 0.0, 0.0);
+        Eigen::Quaterniond quat_body_ref(1.0, 0.0, 0.0, 0.0);
+        Vector3d angvel_body_ref(0.0, 0.0, 0.0);
+
+        acc_body.head(3) = kp_pos * (pos_body_ref - pos_body) + kd_pos * (vel_body_ref - vel_body);
+        acc_body.tail(3) = kp_ang * pinocchio::quaternion::log3(quat_body_ref * quat_body.inverse()) +
+                           kd_ang * (angvel_body_ref - angvel_body);
+
+        // q_interp.setZero();
+        // v_interp.setZero();
+        // a_interp.setZero();
+        // a_interp.head(6) = acc_body;
+        // f_interp.setZero();
+        // std::cout << "a_interp: " << a_interp.transpose() << std::endl;
+        VectorXd sol = wbc.update(x_measure.head(model.nq), x_measure.tail(model.nv), contact_states,
+                                  q_interp, v_interp, a_interp, f_interp);
+        webots.sendCmd(sol.tail(12));
 
         itr++;
 
-        lf_foot_ref_logger.push_back(mpc.getReferencePose(0, "FL_foot").translation());
-        pinocchio::forwardKinematics(model_handler.getModel(), mpc.getDataHandler().getData(), x_measure.head(model_handler.getModel().nq));
-        pinocchio::updateFramePlacements(model_handler.getModel(), mpc.getDataHandler().getData());
-        lf_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("FL_foot")].translation());
+        // lf_foot_ref_logger.push_back(mpc.getReferencePose(0, "FL_foot").translation());
+        // pinocchio::forwardKinematics(model_handler.getModel(), mpc.getDataHandler().getData(), x_measure.head(model_handler.getModel().nq));
+        // pinocchio::updateFramePlacements(model_handler.getModel(), mpc.getDataHandler().getData());
+        // lf_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("FL_foot")].translation());
+        std::cout << "--------------------------" << std::endl;
     }
 
     // ////////////////////// 理想仿真 //////////////////////

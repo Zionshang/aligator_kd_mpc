@@ -6,6 +6,7 @@ find_package(aligator REQUIRED)
 find_package(example-robot-data REQUIRED)
 find_package(ndcurves REQUIRED)
 find_package(proxsuite REQUIRED)
+find_package(qpOASES REQUIRED)
 
 include_directories(include)
 
@@ -25,3 +26,4 @@ target_link_libraries(aligator_kd_mpc example-robot-data::example-robot-data)
 target_link_libraries(aligator_kd_mpc ndcurves::ndcurves)
 target_link_libraries(aligator_kd_mpc ${WEBOTSLIBRARIES})
 target_link_libraries(aligator_kd_mpc proxsuite::proxsuite)
+target_link_libraries(aligator_kd_mpc qpOASES)
