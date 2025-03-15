@@ -59,18 +59,13 @@ int main(int argc, char const *argv[])
 
     VectorXd w_frame_vec(3);
     w_frame_vec << 2000, 2000, 2000;
-    VectorXd w_cent_vec(6);
-    w_cent_vec << 0.0, 0.0, 1.0, 0.1, 0.1, 10.0;
-    VectorXd w_centder_vec(6);
-    w_centder_vec << 0.0, 0.0, 0.0, 0.1, 0.1, 0.1;
+
 
     KinodynamicsSettings kd_settings;
     kd_settings.timestep = 0.01;
     kd_settings.w_x = w_x_vec.asDiagonal();
     kd_settings.w_u = w_u_vec.asDiagonal();
     kd_settings.w_frame = w_frame_vec.asDiagonal();
-    kd_settings.w_cent = w_cent_vec.asDiagonal();
-    kd_settings.w_centder = w_centder_vec.asDiagonal();
     kd_settings.qmin = model_handler.getModel().lowerPositionLimit.tail(12);
     kd_settings.qmax = model_handler.getModel().upperPositionLimit.tail(12);
     kd_settings.gravity = gravity;

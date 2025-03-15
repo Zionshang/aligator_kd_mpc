@@ -16,8 +16,6 @@ namespace simple_mpc
   using namespace aligator;
   using MultibodyPhaseSpace = proxsuite::nlp::MultibodyPhaseSpace<double>;
   using KinodynamicsFwdDynamics = dynamics::KinodynamicsFwdDynamicsTpl<double>;
-  using CentroidalMomentumDerivativeResidual = CentroidalMomentumDerivativeResidualTpl<double>;
-  using CentroidalMomentumResidual = CentroidalMomentumResidualTpl<double>;
   using CentroidalWrenchConeResidual = CentroidalWrenchConeResidualTpl<double>;
   using CentroidalFrictionConeResidual = CentroidalFrictionConeResidualTpl<double>;
   using FramePlacementResidual = FramePlacementResidualTpl<double>;
@@ -52,14 +50,8 @@ namespace simple_mpc
 
     computeControlFromForces(contact_force);
 
-    auto cent_mom = CentroidalMomentumResidual(space.ndx(), nu_, model_handler_.getModel(), Eigen::VectorXd::Zero(6));
-    auto centder_mom = CentroidalMomentumDerivativeResidual(
-        space.ndx(), model_handler_.getModel(), settings_.gravity, contact_states, model_handler_.getFeetIds(),
-        settings_.force_size);
     rcost.addCost("state_cost", QuadraticStateCost(space, nu_, x0_, settings_.w_x)); // ? 期望状态后续有更新吗？
     rcost.addCost("control_cost", QuadraticControlCost(space, control_ref_, settings_.w_u));
-    rcost.addCost("centroidal_cost", QuadraticResidualCost(space, cent_mom, settings_.w_cent));                  // todo: 删除
-    rcost.addCost("centroidal_derivative_cost", QuadraticResidualCost(space, centder_mom, settings_.w_centder)); // todo: 删除
 
     for (auto const &name : model_handler_.getFeetNames()) // todo: 改成只考虑摆动腿
     {
@@ -288,11 +280,8 @@ namespace simple_mpc
   {
     auto ter_space = MultibodyPhaseSpace(model_handler_.getModel());
     auto term_cost = CostStack(ter_space, nu_);
-    auto cent_mom =
-        CentroidalMomentumResidual(ter_space.ndx(), nu_, model_handler_.getModel(), Eigen::VectorXd::Zero(6));
 
     term_cost.addCost("state_cost", QuadraticStateCost(ter_space, nu_, x0_, settings_.w_x));
-    term_cost.addCost("centroidal_cost", QuadraticResidualCost(ter_space, cent_mom, settings_.w_cent * 10));
 
     return term_cost;
   }

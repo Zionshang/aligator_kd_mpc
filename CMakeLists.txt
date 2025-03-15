@@ -33,14 +33,6 @@ target_link_libraries(aligator_kd_mpc ndcurves::ndcurves)
 target_link_libraries(aligator_kd_mpc ${WEBOTSLIBRARIES})
 target_link_libraries(aligator_kd_mpc proxsuite::proxsuite)
 
-
-add_executable(test ${SRC_LIST} test.cpp)
-target_link_libraries(test pinocchio::pinocchio)
-target_link_libraries(test aligator::aligator)
-target_link_libraries(test example-robot-data::example-robot-data)
-target_link_libraries(test ndcurves::ndcurves)
-target_link_libraries(test ${WEBOTSLIBRARIES})
-
 configure_file(
   "${PROJECT_SOURCE_DIR}/include/utils/project_path.hpp.in"
   "${PROJECT_SOURCE_DIR}/include/utils/project_path.hpp" @ONLY
