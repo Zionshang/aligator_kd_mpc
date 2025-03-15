@@ -166,7 +166,7 @@ int main(int argc, char const *argv[])
         {
             auto land_LF = mpc.getFootLandCycle("FL_foot");
             auto land_RF = mpc.getFootLandCycle("RL_foot");
-            std::cout << "landing_RF = " << land_RF << ", landing_LF = " << land_LF << std::endl;
+            // std::cout << "landing_RF = " << land_RF << ", landing_LF = " << land_LF << std::endl;
             mpc.iterate(x_measure);
             a0 = mpc.getStateDerivative(0).tail(model.nv);
             a1 = mpc.getStateDerivative(1).tail(model.nv);
@@ -180,6 +180,8 @@ int main(int argc, char const *argv[])
             forces1 = mpc.us_[1].head(nk * force_size);
             contact_states = mpc.ocp_handler_->getContactState(0);
             itr = 0;
+            std::cout << "force0: " << forces0.transpose() << std::endl;
+            std::cout << "force1: " << forces1.transpose() << std::endl;
         }
         VectorXd a_interp = (double(N_simu) - itr) / double(N_simu) * a0 + itr / double(N_simu) * a1;
         VectorXd f_interp = (double(N_simu) - itr) / double(N_simu) * forces0 + itr / double(N_simu) * forces1;

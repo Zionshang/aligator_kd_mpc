@@ -101,17 +101,17 @@ namespace simple_mpc
         FunctionSliceXpr vel_slice = FunctionSliceXpr(frame_vel, vel_id);
         stm.addConstraint(vel_slice, EqualityConstraint());
 
-        // 落地时刻z方向位置为 0 约束
-        // ? 为什么只考虑落地时刻？这个约束是否有存在的必要？
-        if (land_constraint.at(name))
-        {
-          std::vector<int> frame_id = {2};
-          FrameTranslationResidual frame_residual = FrameTranslationResidual(
-              space.ndx(), nu_, model_handler_.getModel(), contact_pose.at(name).translation(),
-              model_handler_.getFootId(name));
-          FunctionSliceXpr frame_slice = FunctionSliceXpr(frame_residual, frame_id);
-          stm.addConstraint(frame_slice, EqualityConstraint());
-        }
+        // // 落地时刻z方向位置为 0 约束
+        // // ? 为什么只考虑落地时刻？这个约束是否有存在的必要？
+        // if (land_constraint.at(name))
+        // {
+        //   std::vector<int> frame_id = {2};
+        //   FrameTranslationResidual frame_residual = FrameTranslationResidual(
+        //       space.ndx(), nu_, model_handler_.getModel(), contact_pose.at(name).translation(),
+        //       model_handler_.getFootId(name));
+        //   FunctionSliceXpr frame_slice = FunctionSliceXpr(frame_residual, frame_id);
+        //   stm.addConstraint(frame_slice, EqualityConstraint());
+        // }
       }
       i++;
     }
