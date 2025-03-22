@@ -170,8 +170,8 @@ int main(int argc, char const *argv[])
             mpc.iterate(x_measure);
             a0 = mpc.getStateDerivative(0).tail(model.nv);
             a1 = mpc.getStateDerivative(1).tail(model.nv);
-            a0.head(12) = mpc.us_[0].tail(12);
-            a1.head(12) = mpc.us_[1].tail(12);
+            a0.tail(12) = mpc.us_[0].tail(12);
+            a1.tail(12) = mpc.us_[1].tail(12);
             q0 = mpc.xs_[0].head(model.nq);
             q1 = mpc.xs_[1].head(model.nq);
             v0 = mpc.xs_[0].tail(model.nv);
