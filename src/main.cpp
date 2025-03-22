@@ -7,6 +7,7 @@
 #include "utils/logger.hpp"
 #include <pinocchio/algorithm/kinematics.hpp>
 #include <pinocchio/algorithm/frames.hpp>
+#include "wbc/weighted_wbc.hpp"
 
 using namespace simple_mpc;
 using Eigen::Quaterniond;
@@ -59,7 +60,6 @@ int main(int argc, char const *argv[])
 
     VectorXd w_frame_vec(3);
     w_frame_vec << 2000, 2000, 2000;
-
 
     KinodynamicsSettings kd_settings;
     kd_settings.timestep = 0.01;
@@ -125,11 +125,11 @@ int main(int argc, char const *argv[])
         {"RR_foot", false},
     };
     std::vector<std::map<std::string, bool>> contact_phases;
-    contact_phases.insert(contact_phases.end(), T_ds, contact_phase_quadru);
-    contact_phases.insert(contact_phases.end(), T_ss, contact_phase_lift_FL);
-    contact_phases.insert(contact_phases.end(), T_ds, contact_phase_quadru);
-    contact_phases.insert(contact_phases.end(), T_ss, contact_phase_lift_FR);
-    // contact_phases.insert(contact_phases.end(), T, contact_phase_quadru);
+    // contact_phases.insert(contact_phases.end(), T_ds, contact_phase_quadru);
+    // contact_phases.insert(contact_phases.end(), T_ss, contact_phase_lift_FL);
+    // contact_phases.insert(contact_phases.end(), T_ds, contact_phase_quadru);
+    // contact_phases.insert(contact_phases.end(), T_ss, contact_phase_lift_FR);
+    contact_phases.insert(contact_phases.end(), T, contact_phase_quadru);
     mpc.generateCycleHorizon(contact_phases);
 
     ////////////////////// 定义IDSolver //////////////////////
@@ -146,6 +146,18 @@ int main(int argc, char const *argv[])
     id_settings.kp_sw = 350 * Matrix3d::Identity();
     id_settings.kd_sw = 37 * Matrix3d::Identity();
     IDSolver qp(id_settings, model_handler.getModel());
+
+    ////////////////////// 定义Weighted WBC //////////////////////
+    WbcSettings wbc_settings;
+    wbc_settings.contact_ids = model_handler.getFeetIds();
+    wbc_settings.mu = kd_settings.mu;
+    wbc_settings.force_size = kd_settings.force_size;
+    wbc_settings.kp_sw = 350 * Matrix3d::Identity();
+    wbc_settings.kd_sw = 37 * Matrix3d::Identity();
+    wbc_settings.w_swing = 100;
+    wbc_settings.w_base = 1;
+    wbc_settings.w_force = 0.01;
+    WeightedWbc wbc(model_handler.getModel(), wbc_settings);
 
     ////////////////////// 设置仿真 //////////////////////
     int N_simu = 10;
@@ -187,6 +199,8 @@ int main(int argc, char const *argv[])
         VectorXd f_interp = (double(N_simu) - itr) / double(N_simu) * forces0 + itr / double(N_simu) * forces1;
         VectorXd q_interp = (double(N_simu) - itr) / double(N_simu) * q0 + itr / double(N_simu) * q1;
         VectorXd v_interp = (double(N_simu) - itr) / double(N_simu) * v0 + itr / double(N_simu) * v1;
+
+        ////////////////////// 松弛WBC //////////////////////
         mpc.getDataHandler().updateInternalData(x_measure, true);
         qp.solveQP(
             mpc.getDataHandler().getData(),
@@ -199,6 +213,16 @@ int main(int argc, char const *argv[])
             f_interp,
             mpc.getDataHandler().getData().M);
         webots.sendCmd(qp.solved_torque_);
+
+        ////////////////////// 加权WBC //////////////////////
+        // VectorXd sol = wbc.update(x_measure.head(model.nq),
+        //                           x_measure.tail(model.nv),
+        //                           contact_states,
+        //                           q_interp,
+        //                           v_interp,
+        //                           a_interp,
+        //                           f_interp);
+        // webots.sendCmd(sol.tail(12));
 
         itr++;
 
