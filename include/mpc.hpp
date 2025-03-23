@@ -60,11 +60,11 @@ namespace simple_mpc
       MOTION
     };
 
-    std::vector<std::map<std::string, bool>> contact_states_; // 是一个完整的吗？还是只是一个MPC周期的？
+    // contact_states_指的是cycle_horizon_中每个时刻的接触状态，而非MPC中的接触状态
+    // MPC中的接触状态要比cycle_horizon_多一个一开始的完整stance周期
+    std::vector<std::map<std::string, bool>> contact_states_;
     std::vector<std::shared_ptr<StageModel>> cycle_horizon_;  // 大小等于步态周期，而非MPC周期
     std::vector<std::shared_ptr<StageData>> cycle_horizon_data_;
-    std::vector<std::shared_ptr<StageModel>> one_horizon_;
-    std::vector<std::shared_ptr<StageData>> one_horizon_data_;
     std::vector<std::shared_ptr<StageModel>> standing_horizon_;
     std::vector<std::shared_ptr<StageData>> standing_horizon_data_;
     FootTrajectory foot_trajectories_;

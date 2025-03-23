@@ -107,7 +107,7 @@ namespace simple_mpc
     for (auto & name : model_handler_.getFeetNames())
     {
       contact_phase.insert({name, true});
-      contact_pose.insert({name, pinocchio::SE3::Identity()});
+      contact_pose.insert({name, pinocchio::SE3::Identity()}); // ? 这里设置为Identity是否合理？
       contact_force.insert({name, force_ref});
     }
 

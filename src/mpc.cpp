@@ -53,14 +53,12 @@ namespace simple_mpc
     Eigen::VectorXd force_ref(ocp_handler_->getReferenceForce(0, ocp_handler_->getModelHandler().getFootName(0)));
 
     std::map<std::string, bool> contact_states;
-    std::map<std::string, bool> land_constraint;
     std::map<std::string, pinocchio::SE3> contact_poses;
     std::map<std::string, Eigen::VectorXd> force_map;
 
     for (auto const &name : ee_names_)
     {
       contact_states.insert({name, true});
-      land_constraint.insert({name, false});
       contact_poses.insert({name, data_handler_->getFootPose(name)});
       force_map.insert({name, force_ref});
     }
@@ -96,6 +94,7 @@ namespace simple_mpc
   void MPC::generateCycleHorizon(const std::vector<std::map<std::string, bool>> &contact_states)
   {
     contact_states_ = contact_states;
+
     // Guarantee that cycle horizon size is higher than problem size
     int m = int(ocp_handler_->getProblem().numSteps()) / int(contact_states.size());
     for (int i = 0; i < m; i++)
@@ -113,17 +112,14 @@ namespace simple_mpc
         // 从摆动腿变为支撑腿
         if (contact_states_[i].at(name) and !contact_states_[i - 1].at(name))
         {
-          foot_land_times_.at(name).push_back((int)(i + ocp_handler_->getSize())); // ?这里为什么要加上ocp_handler_->getSize()?、
+          // !这里要加上ocp_handler_->getSize()，是因为mpc首先会求一次完整周期的stance步态，
+          // !利用这个stance步态进行热启动，swing步态处于第二个周期，所以要加上一个周期的时间
+          foot_land_times_.at(name).push_back((int)(i + ocp_handler_->getSize()));
         }
       }
       // 保证首尾连续性，如果最后时刻是摆动腿且第一个时刻是支撑腿
       if (!contact_states_.back().at(name) and contact_states_[0].at(name))
-        foot_land_times_.at(name).push_back((int)(contact_states_.size() - 1 + ocp_handler_->getSize())); //? 这里为什么要减1？
-    }
-    std::map<std::string, bool> previous_contacts;
-    for (auto const &name : ee_names_)
-    {
-      previous_contacts.insert({name, true});
+        foot_land_times_.at(name).push_back((int)(contact_states_.size() - 1 + ocp_handler_->getSize()));
     }
 
     // Generate the model stages for cycle horizon
@@ -155,11 +151,9 @@ namespace simple_mpc
           force_map.insert({name, force_zero});
       }
 
-      std::shared_ptr<StageModel> sm =
-          std::make_shared<StageModel>(ocp_handler_->createStage(state, contact_poses, force_map));
+      std::shared_ptr<StageModel> sm = std::make_shared<StageModel>(ocp_handler_->createStage(state, contact_poses, force_map));
       cycle_horizon_.push_back(sm);
       cycle_horizon_data_.push_back(sm->createData());
-      previous_contacts = state;
     }
   }
 
@@ -223,6 +217,15 @@ namespace simple_mpc
 
       updateCycleTiming(true); // ?为什么这里是true
     }
+    // // Print out contact_states_ for debugging
+    // std::vector<std::string> foot_names = {"FL_foot", "FR_foot", "RL_foot", "RR_foot"};
+    // for (const auto &foot : foot_names)
+    // {
+    //   std::cout << foot.substr(0, 2) << " states: ";
+    //   for (const auto &state : contact_states_)
+    //     std::cout << state.at(foot) << " ";
+    //   std::cout << std::endl;
+    // }
   }
 
   // updateOnlyHorizon: 只更新mpc预测周期内的时间，不更新整个stage_models周期

@@ -60,6 +60,7 @@ namespace simple_mpc
       const std::map<std::string, Eigen::VectorXd> & force_refs) = 0;
 
     // Create the complete vector of stages from contact_sequence
+    // todo: 这个没用，可以删除
     virtual std::vector<xyz::polymorphic<StageModel>> createStages(
       const std::vector<std::map<std::string, bool>> & contact_phases,
       const std::vector<std::map<std::string, pinocchio::SE3>> & contact_poses,
