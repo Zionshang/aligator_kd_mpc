@@ -70,8 +70,7 @@ namespace simple_mpc
       xs_.push_back(x0_);
       us_.push_back(ocp_handler_->getReferenceControl(0));
 
-      std::shared_ptr<StageModel> sm = std::make_shared<StageModel>(
-          ocp_handler_->createStage(contact_states, contact_poses, force_map, land_constraint));
+      std::shared_ptr<StageModel> sm = std::make_shared<StageModel>(ocp_handler_->createStage(contact_states, contact_poses, force_map));
       standing_horizon_.push_back(sm);
       standing_horizon_data_.push_back(sm->createData());
     }
@@ -105,7 +104,7 @@ namespace simple_mpc
       contact_states_.insert(contact_states_.end(), copy_vec.begin(), copy_vec.end());
     }
 
-    // Generate contact switch timings 腾空与落地时刻记录
+    // Generate contact switch timings 落地时刻记录
     for (auto const &name : ee_names_)
     {
       foot_land_times_.insert({name, std::vector<int>()});
@@ -114,11 +113,12 @@ namespace simple_mpc
         // 从摆动腿变为支撑腿
         if (contact_states_[i].at(name) and !contact_states_[i - 1].at(name))
         {
-          foot_land_times_.at(name).push_back((int)(i + ocp_handler_->getSize()));
+          foot_land_times_.at(name).push_back((int)(i + ocp_handler_->getSize())); // ?这里为什么要加上ocp_handler_->getSize()?、
         }
       }
+      // 保证首尾连续性，如果最后时刻是摆动腿且第一个时刻是支撑腿
       if (!contact_states_.back().at(name) and contact_states_[0].at(name))
-        foot_land_times_.at(name).push_back((int)(contact_states_.size() - 1 + ocp_handler_->getSize()));
+        foot_land_times_.at(name).push_back((int)(contact_states_.size() - 1 + ocp_handler_->getSize())); //? 这里为什么要减1？
     }
     std::map<std::string, bool> previous_contacts;
     for (auto const &name : ee_names_)
@@ -154,21 +154,9 @@ namespace simple_mpc
         else
           force_map.insert({name, force_zero});
       }
-      std::map<std::string, bool> land_contacts;
-      for (auto const &name : ee_names_)
-      {
-        if (!previous_contacts.at(name) and state.at(name))
-        {
-          land_contacts.insert({name, true});
-        }
-        else
-        {
-          land_contacts.insert({name, false});
-        }
-      }
 
       std::shared_ptr<StageModel> sm =
-          std::make_shared<StageModel>(ocp_handler_->createStage(state, contact_poses, force_map, land_contacts));
+          std::make_shared<StageModel>(ocp_handler_->createStage(state, contact_poses, force_map));
       cycle_horizon_.push_back(sm);
       cycle_horizon_data_.push_back(sm->createData());
       previous_contacts = state;
@@ -223,7 +211,7 @@ namespace simple_mpc
             !contact_states_[contact_states_.size() - 2].at(name))
           foot_land_times_.at(name).push_back((int)(contact_states_.size() + ocp_handler_->getSize()));
       }
-      updateCycleTiming(false);
+      updateCycleTiming(false); // ?为什么这里是false
     }
     else
     {
@@ -233,11 +221,10 @@ namespace simple_mpc
       rotate_vec_left(standing_horizon_);
       rotate_vec_left(standing_horizon_data_);
 
-      updateCycleTiming(true); // 看看给true后会发生什么
+      updateCycleTiming(true); // ?为什么这里是true
     }
   }
 
-  // ? updateOnlyHorizon是干什么的？
   // updateOnlyHorizon: 只更新mpc预测周期内的时间，不更新整个stage_models周期
   void MPC::updateCycleTiming(const bool updateOnlyHorizon)
   {
@@ -246,22 +233,25 @@ namespace simple_mpc
       // 随着时间窗口的推进而向前“平移”
       for (size_t i = 0; i < foot_land_times_.at(name).size(); i++)
       {
+        // 如果更新的是整个stage_models周期，或者foot_land_times 小于mpc预测周期，那么就减1
+        // 站立阶段时，updateOnlyHorizon为true，窗口不需要更新
         if (!updateOnlyHorizon or foot_land_times_.at(name)[i] < (int)ocp_handler_->getSize())
           foot_land_times_.at(name)[i] -= 1;
       }
+      // 如果第一个时间小于0，那么就删除
       if (!foot_land_times_.at(name).empty() and foot_land_times_.at(name)[0] < 0)
         foot_land_times_.at(name).erase(foot_land_times_.at(name).begin());
     }
-    // std::cout << "foot_land_times_:" << std::endl;
-    // for (const auto &pair : foot_land_times_)
-    // {
-    //   std::cout << pair.first << ": ";
-    //   for (const auto &time : pair.second)
-    //   {
-    //     std::cout << time << " ";
-    //   }
-    //   std::cout << std::endl;
-    // }
+    std::cout << "foot_land_times_:" << std::endl;
+    for (const auto &pair : foot_land_times_)
+    {
+      std::cout << pair.first << ": ";
+      for (const auto &time : pair.second)
+      {
+        std::cout << time << " ";
+      }
+      std::cout << std::endl;
+    }
   }
 
   void MPC::updateStepTrackerReferences()

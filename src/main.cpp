@@ -125,11 +125,11 @@ int main(int argc, char const *argv[])
         {"RR_foot", false},
     };
     std::vector<std::map<std::string, bool>> contact_phases;
-    // contact_phases.insert(contact_phases.end(), T_ds, contact_phase_quadru);
-    // contact_phases.insert(contact_phases.end(), T_ss, contact_phase_lift_FL);
-    // contact_phases.insert(contact_phases.end(), T_ds, contact_phase_quadru);
-    // contact_phases.insert(contact_phases.end(), T_ss, contact_phase_lift_FR);
-    contact_phases.insert(contact_phases.end(), T, contact_phase_quadru);
+    contact_phases.insert(contact_phases.end(), T_ds, contact_phase_quadru);
+    contact_phases.insert(contact_phases.end(), T_ss, contact_phase_lift_FL);
+    contact_phases.insert(contact_phases.end(), T_ds, contact_phase_quadru);
+    contact_phases.insert(contact_phases.end(), T_ss, contact_phase_lift_FR);
+    // contact_phases.insert(contact_phases.end(), T, contact_phase_quadru);
     mpc.generateCycleHorizon(contact_phases);
 
     ////////////////////// 定义IDSolver //////////////////////
@@ -174,6 +174,7 @@ int main(int argc, char const *argv[])
     while (webots.isRunning())
     {
         webots.recvState(x_measure);
+        // mpc.switchToStand();
         if (int(itr % 10) == 0)
         {
             auto land_LF = mpc.getFootLandCycle("FL_foot");
@@ -192,8 +193,12 @@ int main(int argc, char const *argv[])
             forces1 = mpc.us_[1].head(nk * force_size);
             contact_states = mpc.ocp_handler_->getContactState(0);
             itr = 0;
-            std::cout << "force0: " << forces0.transpose() << std::endl;
-            std::cout << "force1: " << forces1.transpose() << std::endl;
+            // std::cout << "force0: " << forces0.transpose() << std::endl;
+            // std::cout << "force1: " << forces1.transpose() << std::endl;
+            std::cout << "Contact states: ";
+            for (const auto &state : contact_states)
+                std::cout << state << " ";
+            std::cout << std::endl;
         }
         VectorXd a_interp = (double(N_simu) - itr) / double(N_simu) * a0 + itr / double(N_simu) * a1;
         VectorXd f_interp = (double(N_simu) - itr) / double(N_simu) * forces0 + itr / double(N_simu) * forces1;

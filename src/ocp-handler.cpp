@@ -39,15 +39,7 @@ namespace simple_mpc
     std::vector<xyz::polymorphic<StageModel>> stage_models;
     for (std::size_t i = 0; i < contact_phases.size(); i++)
     {
-      std::map<std::string, bool> land_constraint;
-      for (auto const & name : model_handler_.getFeetNames())
-      {
-        if (!previous_phases.at(name) and contact_phases[i].at(name))
-          land_constraint.insert({name, true}); // 由非接触变为接触状态，就是true
-        else
-          land_constraint.insert({name, false});
-      }
-      StageModel stage = createStage(contact_phases[i], contact_poses[i], contact_forces[i], land_constraint);
+      StageModel stage = createStage(contact_phases[i], contact_poses[i], contact_forces[i]);
       stage_models.push_back(std::move(stage));
       previous_phases = contact_phases[i];
     }
