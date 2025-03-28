@@ -24,9 +24,9 @@ file(GLOB_RECURSE SRC_LIST
   src/ocp-handler.cpp
   src/robot-handler.cpp
   src/webots_interface.cpp
-  src/lowlevel-control.cpp
   src/wbc/wbc_base.cpp
   src/wbc/weighted_wbc.cpp
+  src/wbc/relaxed_wbc.cpp
 )
 add_executable(aligator_kd_mpc ${SRC_LIST} src/main.cpp)
 target_link_libraries(aligator_kd_mpc pinocchio::pinocchio)

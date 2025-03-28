@@ -2,12 +2,12 @@
 #include <pinocchio/parsers/urdf.hpp>
 #include <pinocchio/parsers/srdf.hpp>
 #include "kinodynamics.hpp"
-#include "lowlevel-control.hpp"
 #include "webots_interface.hpp"
 #include "utils/logger.hpp"
 #include <pinocchio/algorithm/kinematics.hpp>
 #include <pinocchio/algorithm/frames.hpp>
 #include "wbc/weighted_wbc.hpp"
+#include "wbc/relaxed_wbc.hpp"
 
 using namespace simple_mpc;
 using Eigen::Quaterniond;
@@ -132,21 +132,6 @@ int main(int argc, char const *argv[])
     // contact_phases.insert(contact_phases.end(), T, contact_phase_quadru);
     mpc.generateCycleHorizon(contact_phases);
 
-    ////////////////////// 定义IDSolver //////////////////////
-    IDSettings id_settings;
-    id_settings.contact_ids = model_handler.getFeetIds();
-    id_settings.mu = kd_settings.mu;
-    id_settings.Lfoot = kd_settings.Lfoot;
-    id_settings.Wfoot = kd_settings.Wfoot;
-    id_settings.force_size = kd_settings.force_size;
-    id_settings.w_acc = 1;
-    id_settings.w_tau = 0;
-    id_settings.w_force = 100;
-    id_settings.verbose = false,
-    id_settings.kp_sw = 350 * Matrix3d::Identity();
-    id_settings.kd_sw = 37 * Matrix3d::Identity();
-    IDSolver qp(id_settings, model_handler.getModel());
-
     ////////////////////// 定义Weighted WBC //////////////////////
     WbcSettings wbc_settings;
     wbc_settings.contact_ids = model_handler.getFeetIds();
@@ -158,6 +143,16 @@ int main(int argc, char const *argv[])
     wbc_settings.w_base = 1;
     wbc_settings.w_force = 0.01;
     WeightedWbc wbc(model_handler.getModel(), wbc_settings);
+
+    ////////////////////// 定义松弛WBC //////////////////////
+    RelaxedWbcSettings Rwbc_settings;
+    Rwbc_settings.contact_ids = model_handler.getFeetIds();
+    Rwbc_settings.mu = kd_settings.mu;
+    Rwbc_settings.force_size = kd_settings.force_size;
+    Rwbc_settings.w_acc = 1;
+    Rwbc_settings.w_force = 100;
+    Rwbc_settings.verbose = false;
+    RelaxedWbc relaxed_wbc(Rwbc_settings, model_handler.getModel());
 
     ////////////////////// 设置仿真 //////////////////////
     int N_simu = 10;
@@ -182,42 +177,31 @@ int main(int argc, char const *argv[])
             mpc.iterate(x_measure);
             a0 = mpc.getStateDerivative(0).tail(model.nv);
             a1 = mpc.getStateDerivative(1).tail(model.nv);
-            a0.tail(12) = mpc.us_[0].tail(12);
+            a0.tail(12) = mpc.us_[0].tail(12);  // ? 这里是否有必要？
             a1.tail(12) = mpc.us_[1].tail(12);
-            q0 = mpc.xs_[0].head(model.nq);
-            q1 = mpc.xs_[1].head(model.nq);
             v0 = mpc.xs_[0].tail(model.nv);
             v1 = mpc.xs_[1].tail(model.nv);
             forces0 = mpc.us_[0].head(nk * force_size);
             forces1 = mpc.us_[1].head(nk * force_size);
             contact_states = mpc.ocp_handler_->getContactState(0);
             itr = 0;
-            // std::cout << "force0: " << forces0.transpose() << std::endl;
-            // std::cout << "force1: " << forces1.transpose() << std::endl;
-            std::cout << "Contact states: ";
-            for (const auto &state : contact_states)
-                std::cout << state << " ";
-            std::cout << std::endl;
             itr_mpc++;
         }
         VectorXd a_interp = (double(N_simu) - itr) / double(N_simu) * a0 + itr / double(N_simu) * a1;
         VectorXd f_interp = (double(N_simu) - itr) / double(N_simu) * forces0 + itr / double(N_simu) * forces1;
-        VectorXd q_interp = (double(N_simu) - itr) / double(N_simu) * q0 + itr / double(N_simu) * q1;
         VectorXd v_interp = (double(N_simu) - itr) / double(N_simu) * v0 + itr / double(N_simu) * v1;
 
         ////////////////////// 松弛WBC //////////////////////
         mpc.getDataHandler().updateInternalData(x_measure, true);
-        qp.solveQP(
+        relaxed_wbc.solveQP(
             mpc.getDataHandler().getData(),
             contact_states,
-            x_measure.tail(model.nv),
-            q_interp,
             v_interp,
             a_interp,
             VectorXd::Zero(12),
             f_interp,
             mpc.getDataHandler().getData().M);
-        webots.sendCmd(qp.solved_torque_);
+        webots.sendCmd(relaxed_wbc.solved_torque_);
 
         ////////////////////// 加权WBC //////////////////////
         // VectorXd sol = wbc.update(x_measure.head(model.nq),

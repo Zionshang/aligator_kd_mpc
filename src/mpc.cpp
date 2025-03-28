@@ -245,16 +245,16 @@ namespace simple_mpc
       if (!foot_land_times_.at(name).empty() and foot_land_times_.at(name)[0] < 0)
         foot_land_times_.at(name).erase(foot_land_times_.at(name).begin());
     }
-    std::cout << "foot_land_times_:" << std::endl;
-    for (const auto &pair : foot_land_times_)
-    {
-      std::cout << pair.first << ": ";
-      for (const auto &time : pair.second)
-      {
-        std::cout << time << " ";
-      }
-      std::cout << std::endl;
-    }
+    // std::cout << "foot_land_times_:" << std::endl;
+    // for (const auto &pair : foot_land_times_)
+    // {
+    //   std::cout << pair.first << ": ";
+    //   for (const auto &time : pair.second)
+    //   {
+    //     std::cout << time << " ";
+    //   }
+    //   std::cout << std::endl;
+    // }
   }
 
   void MPC::updateStepTrackerReferences()
