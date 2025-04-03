@@ -26,7 +26,7 @@ namespace simple_mpc
   protected:
     std::map<std::string, point3_t> initial_poses_;
     std::map<std::string, point3_t> final_poses_;
-    std::map<std::string, std::vector<point3_t>> references_;
+    std::map<std::string, std::vector<point3_t>> references_;  // std::vector的长度等于MPC的预测周期
     double swing_apex_;
     std::map<std::string, piecewise_curve> swing_trajectories_;
     int T_fly_;

@@ -38,6 +38,7 @@ namespace simple_mpc
     }
   }
 
+  // 创建贝塞尔曲线，在起点和终点处保证速度、加速度和加加速度为零
   piecewise_curve FootTrajectory::defineTranslationBezier(const point3_t & trans_init, const point3_t & trans_final)
   {
     std::vector<Eigen::Vector3d> points;
@@ -61,6 +62,7 @@ namespace simple_mpc
     return se3curve;
   }
 
+  // 生成MPC整个预测周期内的足端位置时间序列，包括支撑相和摆动相
   std::vector<point3_t> FootTrajectory::createTrajectory(
     int time_to_land, point3_t & initial_trans, point3_t & final_trans, piecewise_curve trajectory_swing)
   {
@@ -81,6 +83,7 @@ namespace simple_mpc
     return trajectory;
   }
 
+  // 更新足端轨迹，可选择是否重新计算贝塞尔曲线
   void FootTrajectory::updateTrajectory(
     bool update, int landing_time, const point3_t & ee_trans, const point3_t & final_trans, const std::string & ee_name)
   {

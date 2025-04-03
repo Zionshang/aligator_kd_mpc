@@ -266,6 +266,8 @@ namespace simple_mpc
         foot_land_time = foot_land_times_.at(name)[0];
       // std::cout << "name: " << name << " foot_land_time: " << foot_land_time << std::endl;
       bool update = true;
+      // 如果足端即将落地，则不更新
+      // ? 何时update?
       if (foot_land_time < settings_.T_fly)
         update = false;
 
@@ -287,17 +289,6 @@ namespace simple_mpc
     // 只设置了最后一个时刻的终端位姿
     ocp_handler_->setVelocityBase(ocp_handler_->getSize() - 1, velocity_base_);
     ocp_handler_->setPoseBase(ocp_handler_->getSize() - 1, pose_base_);
-
-    Eigen::Vector3d com_ref;
-    com_ref << 0, 0, 0;
-    for (auto const &name : ee_names_)
-    {
-      com_ref += foot_trajectories_.getReference(name).back();
-    }
-    com_ref /= (double)ee_names_.size();
-    com_ref[2] += com0_[2];
-
-    ocp_handler_->updateTerminalConstraint(com_ref);
   }
 
   void MPC::setReferencePose(const std::size_t t, const std::string &ee_name, const pinocchio::SE3 &pose_ref)

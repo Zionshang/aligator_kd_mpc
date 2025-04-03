@@ -84,7 +84,7 @@ int main(int argc, char const *argv[])
     int T_ss = 30;
 
     MPCSettings mpc_settings;
-    mpc_settings.swing_apex = 0.30;
+    mpc_settings.swing_apex = 0.50;
     mpc_settings.support_force = -model_handler.getMass() * gravity(2);
     mpc_settings.TOL = 1e-4;
     mpc_settings.mu_init = 1e-8;
@@ -189,14 +189,13 @@ int main(int argc, char const *argv[])
         }
         VectorXd a_interp = (double(N_simu) - itr) / double(N_simu) * a0 + itr / double(N_simu) * a1;
         VectorXd f_interp = (double(N_simu) - itr) / double(N_simu) * forces0 + itr / double(N_simu) * forces1;
-        VectorXd v_interp = (double(N_simu) - itr) / double(N_simu) * v0 + itr / double(N_simu) * v1;
 
         ////////////////////// 松弛WBC //////////////////////
         mpc.getDataHandler().updateInternalData(x_measure, true);
         relaxed_wbc.solveQP(
             mpc.getDataHandler().getData(),
             contact_states,
-            v_interp,
+            x_measure.tail(model.nv),
             a_interp,
             VectorXd::Zero(12),
             f_interp,
