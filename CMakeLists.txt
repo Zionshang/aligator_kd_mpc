@@ -21,7 +21,6 @@ file(GLOB_RECURSE SRC_LIST
   src/foot-trajectory.cpp
   src/kinodynamics.cpp
   src/mpc.cpp
-  src/ocp-handler.cpp
   src/robot-handler.cpp
   src/webots_interface.cpp
   src/wbc/wbc_base.cpp

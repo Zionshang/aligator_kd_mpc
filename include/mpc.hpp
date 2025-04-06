@@ -15,7 +15,7 @@
 
 #include "foot-trajectory.hpp"
 #include "fwd.hpp"
-#include "ocp-handler.hpp"
+#include "kinodynamics.hpp"
 #include "robot-handler.hpp"
 
 namespace simple_mpc
@@ -89,9 +89,9 @@ namespace simple_mpc
     Eigen::Vector3d next_pose_;
     Eigen::Vector2d twist_vect_;
     MPCSettings settings_;
-    std::shared_ptr<OCPHandler> ocp_handler_;
+    std::shared_ptr<KinodynamicsOCP> ocp_handler_;
 
-    explicit MPC(const MPCSettings &settings, std::shared_ptr<OCPHandler> problem);
+    explicit MPC(const MPCSettings &settings, std::shared_ptr<KinodynamicsOCP> problem);
 
     // Generate the cycle walking problem along which we will iterate
     // the receding horizon

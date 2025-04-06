@@ -25,9 +25,11 @@ namespace simple_mpc
   using IntegratorSemiImplEuler = dynamics::IntegratorSemiImplEulerTpl<double>;
 
   KinodynamicsOCP::KinodynamicsOCP(const KinodynamicsSettings &settings, const RobotModelHandler &model_handler)
-      : Base(model_handler), settings_(settings)
+      : settings_(settings), model_handler_(model_handler), problem_(nullptr)
   {
-
+    nq_ = model_handler.getModel().nq;
+    nv_ = model_handler.getModel().nv;
+    ndx_ = 2 * model_handler.getModel().nv;
     nu_ = nv_ - 6 + settings_.force_size * (int)model_handler_.getFeetNames().size();
     x0_ = model_handler_.getReferenceState();
     control_ref_.resize(nu_);
@@ -104,6 +106,35 @@ namespace simple_mpc
     }
 
     return stm;
+  }
+
+  std::vector<xyz::polymorphic<StageModel>> KinodynamicsOCP::createStages(
+      const std::vector<std::map<std::string, bool>> &contact_phases,
+      const std::vector<std::map<std::string, pinocchio::SE3>> &contact_poses,
+      const std::vector<std::map<std::string, Eigen::VectorXd>> &contact_forces)
+  {
+    if (contact_phases.size() != contact_poses.size())
+    {
+      throw std::runtime_error("Contact phases and poses sequences do not have the same size");
+    }
+    if (contact_phases.size() != contact_forces.size())
+    {
+      throw std::runtime_error("Contact phases and forces sequences do not have the same size");
+    }
+    std::map<std::string, bool> previous_phases;
+    for (auto const &name : model_handler_.getFeetNames())
+    {
+      previous_phases.insert({name, true});
+    }
+    std::vector<xyz::polymorphic<StageModel>> stage_models;
+    for (std::size_t i = 0; i < contact_phases.size(); i++)
+    {
+      StageModel stage = createStage(contact_phases[i], contact_poses[i], contact_forces[i]);
+      stage_models.push_back(std::move(stage));
+      previous_phases = contact_phases[i];
+    }
+
+    return stage_models;
   }
 
   void KinodynamicsOCP::setReferencePose(const std::size_t t, const std::string &ee_name, const pinocchio::SE3 &pose_ref)
@@ -295,6 +326,88 @@ namespace simple_mpc
 
       CoMres->setReference(com_ref);
     }
+  }
+
+  // todo: 传参改为传递结构体
+  void KinodynamicsOCP::createProblem(
+      const ConstVectorRef &x0,
+      const size_t horizon,
+      const int force_size,
+      const double gravity, // todo: double 改为 Eigen::Vector3d
+      const bool terminal_constraint = false)
+  {
+    std::vector<std::map<std::string, bool>> contact_phases;
+    std::vector<std::map<std::string, pinocchio::SE3>> contact_poses;
+    std::vector<std::map<std::string, Eigen::VectorXd>> contact_forces;
+
+    Eigen::VectorXd force_ref(force_size);
+    force_ref.setZero();
+    force_ref[2] = -model_handler_.getMass() * gravity / (double)model_handler_.getFeetNames().size();
+
+    std::map<std::string, bool> contact_phase;
+    std::map<std::string, pinocchio::SE3> contact_pose;
+    std::map<std::string, Eigen::VectorXd> contact_force;
+    for (auto &name : model_handler_.getFeetNames())
+    {
+      contact_phase.insert({name, true});
+      contact_pose.insert({name, pinocchio::SE3::Identity()}); // ? 这里设置为Identity是否合理？
+      contact_force.insert({name, force_ref});
+    }
+
+    for (size_t i = 0; i < horizon; i++)
+    {
+      contact_phases.push_back(contact_phase);
+      contact_poses.push_back(contact_pose);
+      contact_forces.push_back(contact_force);
+    }
+    std::vector<xyz::polymorphic<StageModel>> stage_models =
+        createStages(contact_phases, contact_poses, contact_forces);
+
+    problem_ = std::make_unique<TrajOptProblem>(x0, std::move(stage_models), createTerminalCost());
+    problem_initialized_ = true;
+
+    if (terminal_constraint)
+    {
+      createTerminalConstraint(x0.head(3));
+    }
+  }
+
+  void KinodynamicsOCP::setReferenceControl(const std::size_t t, const ConstVectorRef &u_ref)
+  {
+    CostStack *cs = getCostStack(t);
+    QuadraticControlCost *qc = cs->getComponent<QuadraticControlCost>("control_cost");
+    qc->setTarget(u_ref);
+  }
+
+  ConstVectorRef KinodynamicsOCP::getReferenceControl(const std::size_t t)
+  {
+    CostStack *cs = getCostStack(t);
+    QuadraticControlCost *qc = cs->getComponent<QuadraticControlCost>("control_cost");
+    return qc->getTarget();
+  }
+
+  CostStack *KinodynamicsOCP::getCostStack(std::size_t t)
+  {
+    if (t >= getSize())
+    {
+      throw std::runtime_error("Stage index exceeds stage vector size");
+    }
+    CostStack *cs = dynamic_cast<CostStack *>(&*problem_->stages_[t]->cost_);
+
+    return cs;
+  }
+
+  CostStack *KinodynamicsOCP::getTerminalCostStack()
+  {
+    CostStack *cs = dynamic_cast<CostStack *>(&*problem_->term_cost_);
+
+    return cs;
+  }
+
+  std::size_t KinodynamicsOCP::getCostNumber() const
+  {
+    CostStack *cs = dynamic_cast<CostStack *>(&*problem_->stages_[0]->cost_);
+    return cs->components_.size();
   }
 
 } // namespace simple_mpc

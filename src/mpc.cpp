@@ -7,16 +7,13 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 #include "mpc.hpp"
-#include "foot-trajectory.hpp"
-#include "ocp-handler.hpp"
-#include "robot-handler.hpp"
 
 namespace simple_mpc
 {
   using namespace aligator;
   constexpr std::size_t maxiters = 100;
 
-  MPC::MPC(const MPCSettings &settings, std::shared_ptr<OCPHandler> problem)
+  MPC::MPC(const MPCSettings &settings, std::shared_ptr<KinodynamicsOCP> problem)
       : settings_(settings), ocp_handler_(problem)
   {
 
