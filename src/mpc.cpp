@@ -7,6 +7,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 #include "mpc.hpp"
+#include "utils/logger.hpp"
 
 namespace simple_mpc
 {
@@ -78,9 +79,12 @@ namespace simple_mpc
     us_ = solver_->results_.us;
     Ks_ = solver_->results_.getCtrlFeedbacks();
 
+    // saveVectorsToCsv("initial_xs.csv", xs_);
+    // std::cout << ocp_handler_->getReferencePose(0, "FL_foot");
+    // std::cout << ocp_handler_->getReferencePose(ocp_handler_->getSize()-1, "FL_foot");
+
     solver_->max_iters = settings_.max_iters;
 
-    com0_ = data_handler_->getData().com[0];
     now_ = WALKING;
     pose_base_ = x0_.head<7>();
     velocity_base_.setZero();
@@ -275,32 +279,25 @@ namespace simple_mpc
       next_pose_.head(2) += (velocity_base_.head(2) + velocity_base_[5] * twist_vect_) * (settings_.T_fly + settings_.T_contact) * settings_.timestep;
       next_pose_[2] = data_handler_->getFootPose(name).translation()[2];
       foot_trajectories_.updateTrajectory(update, foot_land_time, data_handler_->getFootPose(name).translation(), next_pose_, name);
-      pinocchio::SE3 pose = pinocchio::SE3::Identity();
+      pinocchio::SE3 pose_ref = pinocchio::SE3::Identity();
       for (unsigned long time = 0; time < ocp_handler_->getSize(); time++)
       {
-        pose.translation() = foot_trajectories_.getReference(name)[time];
-        setReferencePose(time, name, pose);
+        pose_ref.translation() = foot_trajectories_.getReference(name)[time];
+        ocp_handler_->setReferenceFootPose(time, name, pose_ref);
+
       }
     }
 
     // 只设置了最后一个时刻的终端位姿
     ocp_handler_->setVelocityBase(ocp_handler_->getSize() - 1, velocity_base_);
     ocp_handler_->setPoseBase(ocp_handler_->getSize() - 1, pose_base_);
-  }
-
-  void MPC::setReferencePose(const std::size_t t, const std::string &ee_name, const pinocchio::SE3 &pose_ref)
-  {
-    ocp_handler_->setReferencePose(t, ee_name, pose_ref);
+    std::cout << "velocity_base_: " << velocity_base_.transpose() << std::endl;
+    std::cout << "pose_base_: " << pose_base_.transpose() << std::endl;
   }
 
   void MPC::setTerminalReferencePose(const std::string &ee_name, const pinocchio::SE3 &pose_ref)
   {
     ocp_handler_->setTerminalReferencePose(ee_name, pose_ref);
-  }
-
-  const pinocchio::SE3 MPC::getReferencePose(const std::size_t t, const std::string &ee_name) const
-  {
-    return ocp_handler_->getReferencePose(t, ee_name);
   }
 
   ConstVectorRef MPC::getPoseBase(const std::size_t t) const

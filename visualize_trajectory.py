@@ -1,18 +1,22 @@
-import numpy as np
 import pinocchio as pin
 import pandas as pd
 import time
 from pinocchio.visualize import MeshcatVisualizer
+import example_robot_data as erd
 
-csv_path = (
-    "/home/zishang/cpp_workspace/aligator_kd_mpc/build/mpc_kinodynamics_result.csv"
-)
+csv_path = "/home/zishang/cpp_workspace/aligator_kd_mpc/build/initial_xs.csv"
+
 
 # 读取URDF文件和创建机器人模型
-urdf_path = "/home/zishang/cpp_workspace/aligator_kd_mpc/robot/galileo_mini/urdf/galileo_mini.urdf"
-model = pin.buildModelFromUrdf(urdf_path, pin.JointModelFreeFlyer())
-visual_model = pin.buildGeomFromUrdf(model, urdf_path, pin.GeometryType.VISUAL)
-collision_model = pin.buildGeomFromUrdf(model, urdf_path, pin.GeometryType.COLLISION)
+# urdf_path = "/home/zishang/cpp_workspace/aligator_kd_mpc/robot/galileo_mini/urdf/galileo_mini.urdf"
+# model = pin.buildModelFromUrdf(urdf_path, pin.JointModelFreeFlyer())
+# visual_model = pin.buildGeomFromUrdf(model, urdf_path, pin.GeometryType.VISUAL)
+# collision_model = pin.buildGeomFromUrdf(model, urdf_path, pin.GeometryType.COLLISION)
+
+robot_wrapper = erd.load('go2')
+model = robot_wrapper.model
+visual_model = robot_wrapper.visual_model
+collision_model = robot_wrapper.collision_model
 
 # 设置可视化器
 viz = MeshcatVisualizer(model, collision_model, visual_model)

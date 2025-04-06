@@ -107,28 +107,12 @@ namespace simple_mpc
     return stm;
   }
 
-  void KinodynamicsOCP::setReferencePose(const std::size_t t, const std::string &ee_name, const pinocchio::SE3 &pose_ref)
+  void KinodynamicsOCP::setReferenceFootPose(const std::size_t t, const std::string &ee_name, const pinocchio::SE3 &pose_ref)
   {
     CostStack *cs = getCostStack(t);
     QuadraticResidualCost *qrc = cs->getComponent<QuadraticResidualCost>(ee_name + "_pose_cost");
     FrameTranslationResidual *cfr = qrc->getResidual<FrameTranslationResidual>();
     cfr->setReference(pose_ref.translation());
-  }
-
-  void KinodynamicsOCP::setReferencePoses(const std::size_t t, const std::map<std::string, pinocchio::SE3> &pose_refs)
-  {
-    if (pose_refs.size() != model_handler_.getFeetNames().size())
-    {
-      throw std::runtime_error("pose_refs size does not match number of end effectors");
-    }
-
-    CostStack *cs = getCostStack(t);
-    for (auto ee_name : model_handler_.getFeetNames())
-    {
-      QuadraticResidualCost *qrc = cs->getComponent<QuadraticResidualCost>(ee_name + "_pose_cost");
-      FrameTranslationResidual *cfr = qrc->getResidual<FrameTranslationResidual>();
-      cfr->setReference(pose_refs.at(ee_name).translation());
-    }
   }
 
   // ? 这里是不是有问题，终端成本应该没有_pose_cost
@@ -138,24 +122,6 @@ namespace simple_mpc
     QuadraticResidualCost *qrc = cs->getComponent<QuadraticResidualCost>(ee_name + "_pose_cost");
     FrameTranslationResidual *cfr = qrc->getResidual<FrameTranslationResidual>();
     cfr->setReference(pose_ref.translation());
-  }
-
-  const pinocchio::SE3 KinodynamicsOCP::getReferencePose(const std::size_t t, const std::string &ee_name)
-  {
-    CostStack *cs = getCostStack(t);
-    QuadraticResidualCost *qrc = cs->getComponent<QuadraticResidualCost>(ee_name + "_pose_cost");
-    if (settings_.force_size == 6)
-    {
-      FramePlacementResidual *cfr = qrc->getResidual<FramePlacementResidual>();
-      return cfr->getReference();
-    }
-    else
-    {
-      FrameTranslationResidual *cfr = qrc->getResidual<FrameTranslationResidual>();
-      SE3 ref = SE3::Identity();
-      ref.translation() = cfr->getReference();
-      return ref;
-    }
   }
 
   void KinodynamicsOCP::computeControlFromForces(const std::map<std::string, Eigen::VectorXd> &force_refs)
@@ -169,23 +135,6 @@ namespace simple_mpc
       control_ref_.segment((long)i * settings_.force_size, settings_.force_size) =
           force_refs.at(model_handler_.getFootName(i));
     }
-  }
-
-  void
-  KinodynamicsOCP::setReferenceForces(const std::size_t i, const std::map<std::string, Eigen::VectorXd> &force_refs)
-  {
-    computeControlFromForces(force_refs);
-    setReferenceControl(i, control_ref_);
-  }
-
-  void
-  KinodynamicsOCP::setReferenceForce(const std::size_t i, const std::string &ee_name, const ConstVectorRef &force_ref)
-  {
-    std::vector<std::string> hname = model_handler_.getFeetNames();
-    std::vector<std::string>::iterator it = std::find(hname.begin(), hname.end(), ee_name);
-    long id = it - hname.begin();
-    control_ref_.segment(id * settings_.force_size, settings_.force_size) = force_ref;
-    setReferenceControl(i, control_ref_);
   }
 
   const Eigen::VectorXd KinodynamicsOCP::getReferenceForce(const std::size_t i, const std::string &ee_name)

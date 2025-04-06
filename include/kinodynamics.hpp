@@ -89,14 +89,12 @@ namespace simple_mpc
     CostStack createTerminalCost();
 
     // 设置末端位姿参考
-    void setReferencePose(const std::size_t t, const std::string &ee_name, const pinocchio::SE3 &pose_ref);
-    // 设置末端位姿参考
-    void setReferencePoses(const std::size_t i, const std::map<std::string, pinocchio::SE3> &pose_refs);
+    void setReferenceFootPose(const std::size_t t, const std::string &ee_name, const pinocchio::SE3 &pose_ref);
+
+
     void setTerminalReferencePose(const std::string &ee_name, const pinocchio::SE3 &pose_ref);
-    void setReferenceForces(const std::size_t i, const std::map<std::string, Eigen::VectorXd> &force_refs);
-    void setReferenceForce(const std::size_t i, const std::string &ee_name, const ConstVectorRef &force_ref);
+
     const Eigen::VectorXd getReferenceForce(const std::size_t i, const std::string &cost_name);
-    const pinocchio::SE3 getReferencePose(const std::size_t i, const std::string &cost_name);
     const Eigen::VectorXd getVelocityBase(const std::size_t t);
     const Eigen::VectorXd getPoseBase(const std::size_t t);
 

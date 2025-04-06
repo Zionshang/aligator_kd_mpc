@@ -3,7 +3,7 @@
 #include <pinocchio/parsers/srdf.hpp>
 #include "kinodynamics.hpp"
 #include "webots_interface.hpp"
-#include "utils/logger.hpp"
+// #include "utils/logger.hpp"
 #include <pinocchio/algorithm/kinematics.hpp>
 #include <pinocchio/algorithm/frames.hpp>
 #include "wbc/weighted_wbc.hpp"
@@ -242,8 +242,8 @@ int main(int argc, char const *argv[])
     // }
 
     // saveVectorsToCsv("mpc_kinodynamics_result.csv", x_logger);
-    saveVectorsToCsv("lf_foot_ref_logger.csv", lf_foot_ref_logger);
-    saveVectorsToCsv("lf_foot_logger.csv", lf_foot_logger);
+    // saveVectorsToCsv("lf_foot_ref_logger.csv", lf_foot_ref_logger);
+    // saveVectorsToCsv("lf_foot_logger.csv", lf_foot_logger);
 
     return 0;
 }

@@ -75,9 +75,6 @@ namespace simple_mpc
     // Memory preallocations:
     std::vector<unsigned long> controlled_joints_id_;
     std::vector<std::string> ee_names_;
-    Eigen::VectorXd x_internal_;
-    bool time_to_solve_ddp_ = false;
-    Eigen::Vector3d com0_;
     LocomotionType now_;
 
     std::shared_ptr<RobotDataHandler> data_handler_;
@@ -105,27 +102,13 @@ namespace simple_mpc
     // Recede the horizon
     void recedeWithCycle();
 
-    // Getters and setters
-    void setReferencePose(const std::size_t t, const std::string &ee_name, const pinocchio::SE3 &pose_ref);
-
     void setTerminalReferencePose(const std::string &ee_name, const pinocchio::SE3 &pose_ref);
-
-    const pinocchio::SE3 getReferencePose(const std::size_t t, const std::string &ee_name) const;
-
-    [[deprecated]] void setVelocityBase(const Vector6d &v)
-    {
-      velocity_base_ = v;
-    }
 
     void setPoseBaseFromSE3(const pin::SE3 &pose_ref)
     {
       Eigen::Map<pin::SE3::Quaternion> q{pose_base_.tail<4>().data()};
       pose_base_.head<3>() = pose_ref.translation();
       q = pose_ref.rotation();
-    }
-    [[deprecated]] void setPoseBase(const Vector7d &pose_ref)
-    {
-      pose_base_ = pose_ref;
     }
 
     ConstVectorRef getPoseBase(const std::size_t t) const;
