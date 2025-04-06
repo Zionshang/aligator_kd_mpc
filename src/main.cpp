@@ -78,7 +78,7 @@ int main(int argc, char const *argv[])
 
     int T = 50;
     auto kd_problem = std::make_shared<KinodynamicsOCP>(kd_settings, model_handler);
-    kd_problem->createProblem(model_handler.getReferenceState(), T, force_size, gravity(2), false);
+    kd_problem->createProblem(model_handler.getReferenceState(), T, force_size, gravity(2));
 
     int T_ds = 10;
     int T_ss = 30;

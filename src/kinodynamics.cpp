@@ -36,10 +36,9 @@ namespace simple_mpc
     control_ref_.setZero();
   }
 
-  StageModel KinodynamicsOCP::createStage(
-      const std::map<std::string, bool> &contact_phase,
-      const std::map<std::string, pinocchio::SE3> &contact_pose,
-      const std::map<std::string, Eigen::VectorXd> &contact_force)
+  StageModel KinodynamicsOCP::createStage(const std::map<std::string, bool> &contact_phase,
+                                          const std::map<std::string, pinocchio::SE3> &contact_pose,
+                                          const std::map<std::string, Eigen::VectorXd> &contact_force)
   {
     auto space = MultibodyPhaseSpace(model_handler_.getModel());
     auto rcost = CostStack(space, nu_);
@@ -106,35 +105,6 @@ namespace simple_mpc
     }
 
     return stm;
-  }
-
-  std::vector<xyz::polymorphic<StageModel>> KinodynamicsOCP::createStages(
-      const std::vector<std::map<std::string, bool>> &contact_phases,
-      const std::vector<std::map<std::string, pinocchio::SE3>> &contact_poses,
-      const std::vector<std::map<std::string, Eigen::VectorXd>> &contact_forces)
-  {
-    if (contact_phases.size() != contact_poses.size())
-    {
-      throw std::runtime_error("Contact phases and poses sequences do not have the same size");
-    }
-    if (contact_phases.size() != contact_forces.size())
-    {
-      throw std::runtime_error("Contact phases and forces sequences do not have the same size");
-    }
-    std::map<std::string, bool> previous_phases;
-    for (auto const &name : model_handler_.getFeetNames())
-    {
-      previous_phases.insert({name, true});
-    }
-    std::vector<xyz::polymorphic<StageModel>> stage_models;
-    for (std::size_t i = 0; i < contact_phases.size(); i++)
-    {
-      StageModel stage = createStage(contact_phases[i], contact_poses[i], contact_forces[i]);
-      stage_models.push_back(std::move(stage));
-      previous_phases = contact_phases[i];
-    }
-
-    return stage_models;
   }
 
   void KinodynamicsOCP::setReferencePose(const std::size_t t, const std::string &ee_name, const pinocchio::SE3 &pose_ref)
@@ -304,37 +274,11 @@ namespace simple_mpc
     return term_cost;
   }
 
-  void KinodynamicsOCP::createTerminalConstraint(const Eigen::Vector3d &com_ref)
-  {
-    if (!problem_initialized_)
-    {
-      throw std::runtime_error("Create problem first!");
-    }
-    CenterOfMassTranslationResidual com_cstr =
-        CenterOfMassTranslationResidual(ndx_, nu_, model_handler_.getModel(), com_ref);
-
-    problem_->addTerminalConstraint(com_cstr, EqualityConstraint());
-    terminal_constraint_ = true;
-  }
-
-  void KinodynamicsOCP::updateTerminalConstraint(const Eigen::Vector3d &com_ref)
-  {
-    if (terminal_constraint_)
-    {
-      CenterOfMassTranslationResidual *CoMres =
-          problem_->term_cstrs_.getConstraint<CenterOfMassTranslationResidual>(0);
-
-      CoMres->setReference(com_ref);
-    }
-  }
-
   // todo: 传参改为传递结构体
-  void KinodynamicsOCP::createProblem(
-      const ConstVectorRef &x0,
-      const size_t horizon,
-      const int force_size,
-      const double gravity, // todo: double 改为 Eigen::Vector3d
-      const bool terminal_constraint = false)
+  void KinodynamicsOCP::createProblem(const ConstVectorRef &x0,
+                                      const size_t horizon,
+                                      const int force_size,
+                                      const double gravity) // todo: double 改为 Eigen::Vector3d
   {
     std::vector<std::map<std::string, bool>> contact_phases;
     std::vector<std::map<std::string, pinocchio::SE3>> contact_poses;
@@ -360,16 +304,15 @@ namespace simple_mpc
       contact_poses.push_back(contact_pose);
       contact_forces.push_back(contact_force);
     }
-    std::vector<xyz::polymorphic<StageModel>> stage_models =
-        createStages(contact_phases, contact_poses, contact_forces);
+
+    std::vector<xyz::polymorphic<StageModel>> stage_models;
+    for (std::size_t i = 0; i < horizon; i++)
+    {
+      StageModel stage = createStage(contact_phases[i], contact_poses[i], contact_forces[i]);
+      stage_models.push_back(std::move(stage));
+    }
 
     problem_ = std::make_unique<TrajOptProblem>(x0, std::move(stage_models), createTerminalCost());
-    problem_initialized_ = true;
-
-    if (terminal_constraint)
-    {
-      createTerminalConstraint(x0.head(3));
-    }
   }
 
   void KinodynamicsOCP::setReferenceControl(const std::size_t t, const ConstVectorRef &u_ref)
@@ -402,12 +345,6 @@ namespace simple_mpc
     CostStack *cs = dynamic_cast<CostStack *>(&*problem_->term_cost_);
 
     return cs;
-  }
-
-  std::size_t KinodynamicsOCP::getCostNumber() const
-  {
-    CostStack *cs = dynamic_cast<CostStack *>(&*problem_->stages_[0]->cost_);
-    return cs->components_.size();
   }
 
 } // namespace simple_mpc

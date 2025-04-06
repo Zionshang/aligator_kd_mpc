@@ -80,25 +80,13 @@ namespace simple_mpc
 
     SIMPLE_MPC_DEFINE_DEFAULT_MOVE_CTORS(KinodynamicsOCP);
 
-    virtual ~KinodynamicsOCP() {};
-
     // Create one instance of Kinodynamics stage from desired contacts and forces
-    StageModel createStage(
-        const std::map<std::string, bool> &contact_phase,
-        const std::map<std::string, pinocchio::SE3> &contact_pose,
-        const std::map<std::string, Eigen::VectorXd> &contact_force);
+    StageModel createStage(const std::map<std::string, bool> &contact_phase,
+                           const std::map<std::string, pinocchio::SE3> &contact_pose,
+                           const std::map<std::string, Eigen::VectorXd> &contact_force);
 
-    // Create the complete vector of stages from contact_sequence
-    // todo: 这个没用，可以删除
-    virtual std::vector<xyz::polymorphic<StageModel>> createStages(
-        const std::vector<std::map<std::string, bool>> &contact_phases,
-        const std::vector<std::map<std::string, pinocchio::SE3>> &contact_poses,
-        const std::vector<std::map<std::string, Eigen::VectorXd>> &contact_forces);
-
-    // Manage terminal cost and constraint
+    // Manage terminal cost
     CostStack createTerminalCost();
-    void createTerminalConstraint(const Eigen::Vector3d &com_ref);
-    void updateTerminalConstraint(const Eigen::Vector3d &com_ref);
 
     // 设置末端位姿参考
     void setReferencePose(const std::size_t t, const std::string &ee_name, const pinocchio::SE3 &pose_ref);
@@ -122,25 +110,17 @@ namespace simple_mpc
 
     void computeControlFromForces(const std::map<std::string, Eigen::VectorXd> &force_refs);
 
-    KinodynamicsSettings getSettings()
-    {
-      return settings_;
-    }
-
     // Create one TrajOptProblem from contact sequence
-    void createProblem(
-        const ConstVectorRef &x0,
-        const size_t horizon,
-        const int force_size,
-        const double gravity,
-        const bool terminal_constraint);
+    void createProblem(const ConstVectorRef &x0,
+                       const size_t horizon,
+                       const int force_size,
+                       const double gravity);
 
     void setReferenceControl(const std::size_t t, const ConstVectorRef &u_ref);
     ConstVectorRef getReferenceControl(const std::size_t t);
     CostStack *getCostStack(std::size_t t);
     CostStack *getTerminalCostStack();
 
-    std::size_t getCostNumber() const;
     std::size_t getSize() const
     {
       return problem_->numSteps();
@@ -162,10 +142,6 @@ namespace simple_mpc
     {
       return model_handler_;
     }
-    int getNu()
-    {
-      return nu_;
-    }
 
   protected:
     KinodynamicsSettings settings_;
@@ -176,8 +152,6 @@ namespace simple_mpc
     int nv_;
     int ndx_;
     int nu_;
-    bool problem_initialized_ = false;
-    bool terminal_constraint_ = false;
 
     /// The robot model
     RobotModelHandler model_handler_;

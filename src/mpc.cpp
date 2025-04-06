@@ -60,7 +60,7 @@ namespace simple_mpc
       force_map.insert({name, force_ref});
     }
 
-    for (std::size_t i = 0; i < ocp_handler_->getProblem().numSteps(); i++)
+    for (std::size_t i = 0; i < ocp_handler_->getSize(); i++)
     {
       xs_.push_back(x0_);
       us_.push_back(ocp_handler_->getReferenceControl(0));
@@ -93,7 +93,7 @@ namespace simple_mpc
     contact_states_ = contact_states;
 
     // Guarantee that cycle horizon size is higher than problem size
-    int m = int(ocp_handler_->getProblem().numSteps()) / int(contact_states.size());
+    int m = int(ocp_handler_->getSize()) / int(contact_states.size());
     for (int i = 0; i < m; i++)
     {
       std::vector<std::map<std::string, bool>> copy_vec = contact_states;
