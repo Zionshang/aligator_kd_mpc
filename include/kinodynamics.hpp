@@ -61,8 +61,6 @@ namespace simple_mpc
     // Physics parameters
     Eigen::Vector3d gravity;
     double mu;
-    double Lfoot;
-    double Wfoot;
     int force_size;
 
     // Constraint
@@ -90,18 +88,14 @@ namespace simple_mpc
 
     // 设置末端位姿参考
     void setReferenceFootPose(const std::size_t t, const std::string &ee_name, const pinocchio::SE3 &pose_ref);
-
+    
+    // 设置状态参考
+    void setReferenceState(const std::size_t t, const ConstVectorRef &x_ref);
 
     void setTerminalReferencePose(const std::string &ee_name, const pinocchio::SE3 &pose_ref);
 
     const Eigen::VectorXd getReferenceForce(const std::size_t i, const std::string &cost_name);
-    const Eigen::VectorXd getVelocityBase(const std::size_t t);
-    const Eigen::VectorXd getPoseBase(const std::size_t t);
 
-    // 设置基座速度参考
-    void setPoseBase(const std::size_t t, const ConstVectorRef &pose_base);
-    // 设置基座速度参考
-    void setVelocityBase(const std::size_t t, const ConstVectorRef &velocity_base);
     const Eigen::VectorXd getProblemState(const RobotDataHandler &data_handler);
     size_t getContactSupport(const std::size_t t);
     std::vector<bool> getContactState(const std::size_t t);

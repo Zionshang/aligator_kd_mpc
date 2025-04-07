@@ -104,14 +104,7 @@ namespace simple_mpc
 
     void setTerminalReferencePose(const std::string &ee_name, const pinocchio::SE3 &pose_ref);
 
-    void setPoseBaseFromSE3(const pin::SE3 &pose_ref)
-    {
-      Eigen::Map<pin::SE3::Quaternion> q{pose_base_.tail<4>().data()};
-      pose_base_.head<3>() = pose_ref.translation();
-      q = pose_ref.rotation();
-    }
-
-    ConstVectorRef getPoseBase(const std::size_t t) const;
+    void setReferenceState(const std::vector<VectorXd> &x_ref) { x_ref_ = x_ref; }
 
     // getters and setters
     TrajOptProblem &getTrajOptProblem();
@@ -123,28 +116,6 @@ namespace simple_mpc
     const RobotModelHandler &getModelHandler() const
     {
       return ocp_handler_->getModelHandler();
-    }
-
-    std::vector<std::shared_ptr<StageModel>> &getCycleHorizon()
-    {
-      return cycle_horizon_;
-    }
-
-    inline bool getCyclingContactState(const std::size_t t, const std::string &ee_name) const
-    {
-      return contact_states_[t].at(ee_name);
-    }
-
-    inline int getFootLandCycle(const std::string &ee_name) const
-    {
-      if (foot_land_times_.at(ee_name).empty())
-      {
-        return -1;
-      }
-      else
-      {
-        return foot_land_times_.at(ee_name)[0];
-      }
     }
 
     const ConstVectorRef getStateDerivative(const std::size_t t)
@@ -167,6 +138,9 @@ namespace simple_mpc
     std::vector<VectorXd> us_;
     // Riccati gains
     std::vector<MatrixXd> Ks_;
+
+    // Reference state
+    std::vector<VectorXd> x_ref_;
 
     // Initial quantities
     VectorXd x0_;

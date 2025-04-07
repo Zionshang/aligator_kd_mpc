@@ -115,6 +115,13 @@ namespace simple_mpc
     cfr->setReference(pose_ref.translation());
   }
 
+  void KinodynamicsOCP::setReferenceState(const std::size_t t, const ConstVectorRef &x_ref)
+  {
+    CostStack *cs = getCostStack(t);
+    QuadraticStateCost *qsc = cs->getComponent<QuadraticStateCost>("state_cost");
+    qsc->setTarget(x_ref);
+  }
+
   // ? 这里是不是有问题，终端成本应该没有_pose_cost
   void KinodynamicsOCP::setTerminalReferencePose(const std::string &ee_name, const pinocchio::SE3 &pose_ref)
   {

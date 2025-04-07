@@ -25,6 +25,8 @@ int main(int argc, char const *argv[])
 
     pinocchio::urdf::buildModel(urdf_path, JointModelFreeFlyer(), model);
     pinocchio::srdf::loadReferenceConfigurations(model, srdf_path, false);
+    const int nq = model.nq;
+    const int nv = model.nv;
 
     std::string base_joint_name = "root_joint";
     RobotModelHandler model_handler(model, "standing", base_joint_name);
@@ -43,18 +45,18 @@ int main(int argc, char const *argv[])
 
     /////////////////////////////////////// 定义权重 ///////////////////////////////////////
     VectorXd w_basepos(6);
-    w_basepos << 0, 0, 100, 10, 10, 0;
+    w_basepos << 1000, 1000, 1500, 300, 300, 100;
     VectorXd w_legpos(3);
     w_legpos << 1, 1, 1;
     VectorXd w_basevel(6);
-    w_basevel << 10, 10, 10, 10, 10, 10;
+    w_basevel << 10, 10, 100, 30, 30, 10;
     VectorXd w_legvel(3);
     w_legvel << 0.1, 0.1, 0.1;
     VectorXd w_x_vec(2 * model.nv);
     w_x_vec << w_basepos, w_legpos, w_legpos, w_legpos, w_legpos, w_basevel, w_legvel, w_legvel, w_legvel, w_legvel;
 
     VectorXd w_force(3);
-    w_force << 0.01, 0.01, 0.01;
+    w_force << 0.001, 0.001, 0.001;
     VectorXd w_u_vec(4 * force_size + model_handler.getModel().nv - 6);
     w_u_vec << w_force, w_force, w_force, w_force, Eigen::VectorXd::Ones(model_handler.getModel().nv - 6) * 1e-5;
 
@@ -70,8 +72,6 @@ int main(int argc, char const *argv[])
     kd_settings.qmax = model_handler.getModel().upperPositionLimit.tail(12);
     kd_settings.gravity = gravity;
     kd_settings.mu = 0.8;
-    kd_settings.Lfoot = 0.01;
-    kd_settings.Wfoot = 0.01;
     kd_settings.force_size = force_size;
     kd_settings.kinematics_limits = true;
     kd_settings.force_cone = true;
@@ -132,18 +132,6 @@ int main(int argc, char const *argv[])
     // contact_phases.insert(contact_phases.end(), T, contact_phase_quadru);
     mpc.generateCycleHorizon(contact_phases);
 
-    ////////////////////// 定义Weighted WBC //////////////////////
-    WbcSettings wbc_settings;
-    wbc_settings.contact_ids = model_handler.getFeetIds();
-    wbc_settings.mu = kd_settings.mu;
-    wbc_settings.force_size = kd_settings.force_size;
-    wbc_settings.kp_sw = 350 * Matrix3d::Identity();
-    wbc_settings.kd_sw = 37 * Matrix3d::Identity();
-    wbc_settings.w_swing = 100;
-    wbc_settings.w_base = 1;
-    wbc_settings.w_force = 0.01;
-    WeightedWbc wbc(model_handler.getModel(), wbc_settings);
-
     ////////////////////// 定义松弛WBC //////////////////////
     RelaxedWbcSettings Rwbc_settings;
     Rwbc_settings.contact_ids = model_handler.getFeetIds();
@@ -156,31 +144,53 @@ int main(int argc, char const *argv[])
 
     ////////////////////// 设置仿真 //////////////////////
     int N_simu = 10;
-    VectorXd v(6);
-    v << 0.8, 0, 0, 0, 0, 0;
-    mpc.velocity_base_ = v;
     VectorXd x_measure = model_handler.getReferenceState();
     WebotsInterface webots;
     int itr = 0;
-    VectorXd a0, a1, forces0, forces1, q0, q1, v0, v1;
+    VectorXd a0, a1, forces0, forces1;
     std::vector<bool> contact_states;
     std::vector<VectorXd> x_logger, lf_foot_ref_logger, lf_foot_logger;
     int itr_mpc = 0;
 
+    std::vector<VectorXd> pos_ref(mpc_settings.T, x_measure.head(nq));
+    std::vector<VectorXd> vel_ref(mpc_settings.T, x_measure.tail(nv));
+    std::vector<VectorXd> x_ref(mpc_settings.T, x_measure);
+    VectorXd pos_ref_start = x_measure.head(nq);
+    double vx = 0;
+    vel_ref[0](0) = vx;
+
+    const double dt = 0.001; // Time step for integration
+
     while (webots.isRunning())
     {
         webots.recvState(x_measure);
+
+        // 设置参考轨迹
+        pin::integrate(model, pos_ref_start, vel_ref[0] * dt, pos_ref[0]);
+        pos_ref_start = pos_ref[0];
+
+        x_ref[0].head(nq) = pos_ref[0];
+        x_ref[0].tail(nv) = vel_ref[0];
+        for (int i = 1; i < mpc_settings.T; i++)
+        {
+            vel_ref[i] = vel_ref[i - 1];
+            pin::integrate(model, pos_ref[i - 1], vel_ref[i - 1] * dt, pos_ref[i]);
+            x_ref[i].head(nq) = pos_ref[i];
+            x_ref[i].tail(nv) = vel_ref[i];
+        }
+        std::cout << "x_ref[0] = " << x_ref[0].transpose() << std::endl;
+        std::cout << "x_ref[end] = " << x_ref[mpc_settings.T - 1].transpose() << std::endl;
+
         // mpc.switchToStand();
         if (int(itr % 10) == 0)
         {
             std::cout << "itr_mpc = " << itr_mpc << std::endl;
+            mpc.setReferenceState(x_ref);
             mpc.iterate(x_measure);
             a0 = mpc.getStateDerivative(0).tail(model.nv);
             a1 = mpc.getStateDerivative(1).tail(model.nv);
             a0.tail(12) = mpc.us_[0].tail(12);  // ? 这里是否有必要？
             a1.tail(12) = mpc.us_[1].tail(12);
-            v0 = mpc.xs_[0].tail(model.nv);
-            v1 = mpc.xs_[1].tail(model.nv);
             forces0 = mpc.us_[0].head(nk * force_size);
             forces1 = mpc.us_[1].head(nk * force_size);
             contact_states = mpc.ocp_handler_->getContactState(0);
@@ -202,16 +212,6 @@ int main(int argc, char const *argv[])
             mpc.getDataHandler().getData().M);
         webots.sendCmd(relaxed_wbc.solved_torque_);
 
-        ////////////////////// 加权WBC //////////////////////
-        // VectorXd sol = wbc.update(x_measure.head(model.nq),
-        //                           x_measure.tail(model.nv),
-        //                           contact_states,
-        //                           q_interp,
-        //                           v_interp,
-        //                           a_interp,
-        //                           f_interp);
-        // webots.sendCmd(sol.tail(12));
-
         itr++;
 
         // lf_foot_ref_logger.push_back(mpc.getReferencePose(0, "FL_foot").translation());
@@ -220,30 +220,6 @@ int main(int argc, char const *argv[])
         // lf_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("FL_foot")].translation());
         // std::cout << "--------------------------" << std::endl;
     }
-
-    // ////////////////////// 理想仿真 //////////////////////
-    // VectorXd v(6);
-    // v << 0.5, 0, 0, 0, 0, 0;
-    // mpc.velocity_base_ = v;
-    // VectorXd x_measure = model_handler.getReferenceState();
-    // double sim_time = mpc_settings.timestep * T * 10;
-    // std::vector<VectorXd> x_logger, lf_foot_ref_logger, lf_foot_logger;
-
-    // for (int i = 0; i < int(sim_time / mpc_settings.timestep); i++)
-    // {
-    //     mpc.iterate(x_measure);
-    //     std::cout << "i: " << i << " FL_foot ref pose: " << mpc.getReferencePose(0, "FL_foot").translation().transpose() << std::endl;
-    //     x_measure = mpc.xs_[1];
-    //     x_logger.push_back(x_measure);
-    //     lf_foot_ref_logger.push_back(mpc.getReferencePose(0, "FL_foot").translation());
-    //     pinocchio::forwardKinematics(model_handler.getModel(), mpc.getDataHandler().getData(), x_measure.head(model_handler.getModel().nq));
-    //     pinocchio::updateFramePlacements(model_handler.getModel(), mpc.getDataHandler().getData());
-    //     lf_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("FL_foot")].translation());
-    // }
-
-    // saveVectorsToCsv("mpc_kinodynamics_result.csv", x_logger);
-    // saveVectorsToCsv("lf_foot_ref_logger.csv", lf_foot_ref_logger);
-    // saveVectorsToCsv("lf_foot_logger.csv", lf_foot_logger);
 
     return 0;
 }

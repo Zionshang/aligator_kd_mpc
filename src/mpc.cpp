@@ -17,7 +17,6 @@ namespace simple_mpc
   MPC::MPC(const MPCSettings &settings, std::shared_ptr<KinodynamicsOCP> problem)
       : settings_(settings), ocp_handler_(problem)
   {
-
     data_handler_ = std::make_shared<RobotDataHandler>(ocp_handler_->getModelHandler());
     data_handler_->updateInternalData(ocp_handler_->getModelHandler().getReferenceState(), true);
     std::map<std::string, Eigen::Vector3d> starting_poses;
@@ -33,6 +32,7 @@ namespace simple_mpc
 
     foot_trajectories_.updateApex(settings.swing_apex);
     x0_ = ocp_handler_->getProblemState(*data_handler_);
+    x_ref_.assign(ocp_handler_->getSize(), x0_);
 
     solver_ = std::make_unique<SolverProxDDP>(settings_.TOL, settings_.mu_init, maxiters, aligator::VerboseLevel::QUIET);
     solver_->rollout_type_ = aligator::RolloutType::LINEAR;
@@ -260,6 +260,13 @@ namespace simple_mpc
 
   void MPC::updateStepTrackerReferences()
   {
+    // Set reference state
+    for (int i = 0; i < ocp_handler_->getSize(); i++)
+    {
+      ocp_handler_->setReferenceState(i, x_ref_[i]);
+    }
+
+    velocity_base_ = x_ref_[0].segment(getModelHandler().getModel().nq, 6);
     for (auto const &name : ee_names_)
     {
       int foot_land_time = -1;
@@ -284,25 +291,13 @@ namespace simple_mpc
       {
         pose_ref.translation() = foot_trajectories_.getReference(name)[time];
         ocp_handler_->setReferenceFootPose(time, name, pose_ref);
-
       }
     }
-
-    // 只设置了最后一个时刻的终端位姿
-    ocp_handler_->setVelocityBase(ocp_handler_->getSize() - 1, velocity_base_);
-    ocp_handler_->setPoseBase(ocp_handler_->getSize() - 1, pose_base_);
-    std::cout << "velocity_base_: " << velocity_base_.transpose() << std::endl;
-    std::cout << "pose_base_: " << pose_base_.transpose() << std::endl;
   }
 
   void MPC::setTerminalReferencePose(const std::string &ee_name, const pinocchio::SE3 &pose_ref)
   {
     ocp_handler_->setTerminalReferencePose(ee_name, pose_ref);
-  }
-
-  ConstVectorRef MPC::getPoseBase(const std::size_t t) const
-  {
-    return ocp_handler_->getPoseBase(t);
   }
 
   TrajOptProblem &MPC::getTrajOptProblem()
