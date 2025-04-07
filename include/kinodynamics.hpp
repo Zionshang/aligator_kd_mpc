@@ -112,6 +112,8 @@ namespace simple_mpc
     ConstVectorRef getReferenceControl(const std::size_t t);
     CostStack *getCostStack(std::size_t t);
     CostStack *getTerminalCostStack();
+    const pinocchio::SE3 getReferenceFootPose(const std::size_t i, const std::string & cost_name);
+
 
     std::size_t getSize() const
     {

@@ -4,7 +4,7 @@ import time
 from pinocchio.visualize import MeshcatVisualizer
 import example_robot_data as erd
 
-csv_path = "/home/zishang/cpp_workspace/aligator_kd_mpc/build/initial_xs.csv"
+csv_path = "/home/zishang/cpp_workspace/aligator_kd_mpc/build/x.csv"
 
 
 # 读取URDF文件和创建机器人模型

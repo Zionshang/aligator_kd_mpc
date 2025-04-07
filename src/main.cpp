@@ -3,7 +3,7 @@
 #include <pinocchio/parsers/srdf.hpp>
 #include "kinodynamics.hpp"
 #include "webots_interface.hpp"
-// #include "utils/logger.hpp"
+#include "utils/logger.hpp"
 #include <pinocchio/algorithm/kinematics.hpp>
 #include <pinocchio/algorithm/frames.hpp>
 #include "wbc/weighted_wbc.hpp"
@@ -15,6 +15,7 @@ using Eigen::Vector3d;
 using Eigen::VectorXd;
 
 #define EXAMPLE_ROBOT_DATA_MODEL_DIR "/opt/openrobots/share/example-robot-data/robots"
+#define WEBOTS
 
 int main(int argc, char const *argv[])
 {
@@ -61,7 +62,7 @@ int main(int argc, char const *argv[])
     w_u_vec << w_force, w_force, w_force, w_force, Eigen::VectorXd::Ones(model_handler.getModel().nv - 6) * 1e-5;
 
     VectorXd w_frame_vec(3);
-    w_frame_vec << 2000, 2000, 2000;
+    w_frame_vec << 5000, 5000, 5000;
 
     KinodynamicsSettings kd_settings;
     kd_settings.timestep = 0.01;
@@ -142,21 +143,22 @@ int main(int argc, char const *argv[])
     Rwbc_settings.verbose = false;
     RelaxedWbc relaxed_wbc(Rwbc_settings, model_handler.getModel());
 
-    ////////////////////// 设置仿真 //////////////////////
+////////////////////// 设置仿真 //////////////////////
+#ifdef WEBOTS
     int N_simu = 10;
     VectorXd x_measure = model_handler.getReferenceState();
     WebotsInterface webots;
     int itr = 0;
     VectorXd a0, a1, forces0, forces1;
     std::vector<bool> contact_states;
-    std::vector<VectorXd> x_logger, lf_foot_ref_logger, lf_foot_logger;
+    std::vector<VectorXd> x_logger, rf_foot_ref_logger, rf_foot_logger;
     int itr_mpc = 0;
 
     std::vector<VectorXd> pos_ref(mpc_settings.T, x_measure.head(nq));
     std::vector<VectorXd> vel_ref(mpc_settings.T, x_measure.tail(nv));
     std::vector<VectorXd> x_ref(mpc_settings.T, x_measure);
     VectorXd pos_ref_start = x_measure.head(nq);
-    double vx = 0;
+    double vx = 0.2;
     vel_ref[0](0) = vx;
 
     const double dt = 0.001; // Time step for integration
@@ -189,13 +191,19 @@ int main(int argc, char const *argv[])
             mpc.iterate(x_measure);
             a0 = mpc.getStateDerivative(0).tail(model.nv);
             a1 = mpc.getStateDerivative(1).tail(model.nv);
-            a0.tail(12) = mpc.us_[0].tail(12);  // ? 这里是否有必要？
+            a0.tail(12) = mpc.us_[0].tail(12); // ? 这里是否有必要？
             a1.tail(12) = mpc.us_[1].tail(12);
             forces0 = mpc.us_[0].head(nk * force_size);
             forces1 = mpc.us_[1].head(nk * force_size);
             contact_states = mpc.ocp_handler_->getContactState(0);
             itr = 0;
             itr_mpc++;
+
+            rf_foot_ref_logger.push_back(kd_problem->getReferenceFootPose(0, "FR_foot").translation());
+            pinocchio::forwardKinematics(model_handler.getModel(), mpc.getDataHandler().getData(), x_measure.head(model_handler.getModel().nq));
+            pinocchio::updateFramePlacements(model_handler.getModel(), mpc.getDataHandler().getData());
+            rf_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("FR_foot")].translation());
+            std::cout << "--------------------------" << std::endl;
         }
         VectorXd a_interp = (double(N_simu) - itr) / double(N_simu) * a0 + itr / double(N_simu) * a1;
         VectorXd f_interp = (double(N_simu) - itr) / double(N_simu) * forces0 + itr / double(N_simu) * forces1;
@@ -213,13 +221,52 @@ int main(int argc, char const *argv[])
         webots.sendCmd(relaxed_wbc.solved_torque_);
 
         itr++;
-
-        // lf_foot_ref_logger.push_back(mpc.getReferencePose(0, "FL_foot").translation());
-        // pinocchio::forwardKinematics(model_handler.getModel(), mpc.getDataHandler().getData(), x_measure.head(model_handler.getModel().nq));
-        // pinocchio::updateFramePlacements(model_handler.getModel(), mpc.getDataHandler().getData());
-        // lf_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("FL_foot")].translation());
-        // std::cout << "--------------------------" << std::endl;
     }
+#else
+    VectorXd x_measure = model_handler.getReferenceState();
+    int itr = 0;
+    std::vector<bool> contact_states;
+    std::vector<VectorXd> x_logger, rf_foot_ref_logger, rf_foot_logger;
 
+    std::vector<VectorXd> pos_ref(mpc_settings.T, x_measure.head(nq));
+    std::vector<VectorXd> vel_ref(mpc_settings.T, x_measure.tail(nv));
+    std::vector<VectorXd> x_ref(mpc_settings.T, x_measure);
+    VectorXd pos_ref_start = x_measure.head(nq);
+    double vx = 0;
+    vel_ref[0](0) = vx;
+
+    while (itr < 1000)
+    {
+        pin::integrate(model, pos_ref_start, vel_ref[0] * 0.001, pos_ref[0]);
+        pos_ref_start = pos_ref[0];
+
+        x_ref[0].head(nq) = pos_ref[0];
+        x_ref[0].tail(nv) = vel_ref[0];
+        for (int i = 1; i < mpc_settings.T; i++)
+        {
+            vel_ref[i] = vel_ref[i - 1];
+            pin::integrate(model, pos_ref[i - 1], vel_ref[i - 1] * 0.001, pos_ref[i]);
+            x_ref[i].head(nq) = pos_ref[i];
+            x_ref[i].tail(nv) = vel_ref[i];
+        }
+
+        mpc.setReferenceState(x_ref);
+        mpc.iterate(x_measure);
+
+        x_measure = mpc.xs_[1];
+
+        x_logger.push_back(x_measure);
+        rf_foot_ref_logger.push_back(kd_problem->getReferenceFootPose(0, "FR_foot").translation());
+        pinocchio::forwardKinematics(model_handler.getModel(), mpc.getDataHandler().getData(), x_measure.head(model_handler.getModel().nq));
+        pinocchio::updateFramePlacements(model_handler.getModel(), mpc.getDataHandler().getData());
+        rf_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("FR_foot")].translation());
+
+        itr++;
+        std::cout << "itr = " << itr << std::endl;
+    }
+#endif
+    saveVectorsToCsv("x.csv", x_logger);
+    saveVectorsToCsv("fr_foot_ref.csv", rf_foot_ref_logger);
+    saveVectorsToCsv("fr_foot.csv", rf_foot_logger);
     return 0;
 }

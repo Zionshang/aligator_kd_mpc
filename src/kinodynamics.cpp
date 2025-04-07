@@ -50,14 +50,14 @@ namespace simple_mpc
 
     computeControlFromForces(contact_force);
 
-    rcost.addCost("state_cost", QuadraticStateCost(space, nu_, x0_, settings_.w_x)); // ? 期望状态后续有更新吗？
+    rcost.addCost("state_cost", QuadraticStateCost(space, nu_, x0_, settings_.w_x));
     rcost.addCost("control_cost", QuadraticControlCost(space, control_ref_, settings_.w_u));
 
     for (auto const &name : model_handler_.getFeetNames()) // todo: 改成只考虑摆动腿
     {
       FrameTranslationResidual frame_residual = FrameTranslationResidual(
           space.ndx(), nu_, model_handler_.getModel(), contact_pose.at(name).translation(),
-          model_handler_.getFootId(name)); // ? mpc过程中在哪里更新了contact_pose的值？
+          model_handler_.getFootId(name));
 
       rcost.addCost(name + "_pose_cost", QuadraticResidualCost(space, frame_residual, settings_.w_frame));
     }
@@ -151,44 +151,6 @@ namespace simple_mpc
     long id = it - hname.begin();
 
     return getReferenceControl(i).segment(id * settings_.force_size, settings_.force_size);
-  }
-
-  const Eigen::VectorXd KinodynamicsOCP::getVelocityBase(const std::size_t t)
-  {
-    CostStack *cs = getCostStack(t);
-    QuadraticStateCost *qc = cs->getComponent<QuadraticStateCost>("state_cost");
-    return qc->getTarget().segment(nq_, 6);
-  }
-
-  void KinodynamicsOCP::setVelocityBase(const std::size_t t, const ConstVectorRef &velocity_base)
-  {
-    if (velocity_base.size() != 6)
-    {
-      throw std::runtime_error("velocity_base size should be 6");
-    }
-    CostStack *cs = getCostStack(t);
-    QuadraticStateCost *qc = cs->getComponent<QuadraticStateCost>("state_cost");
-    x0_.segment(nq_, 6) = velocity_base;
-    qc->setTarget(x0_);
-  }
-
-  const Eigen::VectorXd KinodynamicsOCP::getPoseBase(const std::size_t t)
-  {
-    CostStack *cs = getCostStack(t);
-    QuadraticStateCost *qc = cs->getComponent<QuadraticStateCost>("state_cost");
-    return qc->getTarget().head(7);
-  };
-
-  void KinodynamicsOCP::setPoseBase(const std::size_t t, const ConstVectorRef &pose_base)
-  {
-    if (pose_base.size() != 7)
-    {
-      throw std::runtime_error("pose_base size should be 7");
-    }
-    CostStack *cs = getCostStack(t);
-    QuadraticStateCost *qc = cs->getComponent<QuadraticStateCost>("state_cost");
-    x0_.head(7) = pose_base;
-    qc->setTarget(x0_);
   }
 
   const Eigen::VectorXd KinodynamicsOCP::getProblemState(const RobotDataHandler &data_handler)
@@ -301,6 +263,15 @@ namespace simple_mpc
     CostStack *cs = dynamic_cast<CostStack *>(&*problem_->term_cost_);
 
     return cs;
+  }
+  const pinocchio::SE3 KinodynamicsOCP::getReferenceFootPose(const std::size_t t, const std::string & ee_name)
+  {
+    CostStack * cs = getCostStack(t);
+    QuadraticResidualCost * qrc = cs->getComponent<QuadraticResidualCost>(ee_name + "_pose_cost");
+    FrameTranslationResidual * cfr = qrc->getResidual<FrameTranslationResidual>();
+    SE3 ref = SE3::Identity();
+    ref.translation() = cfr->getReference();
+    return ref;
   }
 
 } // namespace simple_mpc
