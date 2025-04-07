@@ -149,7 +149,8 @@ namespace simple_mpc
 
     /// The robot model
     RobotModelHandler model_handler_;
-
+    pin::Data data_;
+    
     /// The reference shooting problem storing all shooting nodes
     std::unique_ptr<TrajOptProblem> problem_;
 

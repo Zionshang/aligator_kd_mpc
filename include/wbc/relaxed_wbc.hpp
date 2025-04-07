@@ -24,9 +24,13 @@ namespace simple_mpc
     protected:
         RelaxedWbcSettings settings_;
         pin::Model model_;
+        pin::Data data_;
+
         int force_dim_;
         int nforcein_;
         int nk_;
+        int nv_;
+        int nq_;
 
         Eigen::MatrixXd H_;
         Eigen::MatrixXd A_;
@@ -39,30 +43,29 @@ namespace simple_mpc
         Eigen::VectorXd u_;
 
         Eigen::MatrixXd Jc_;
-        Eigen::VectorXd gamma_;
+        Eigen::VectorXd Jdot_v_;
         Eigen::MatrixXd Jdot_;
 
         // Internal matrix computation
-        void computeMatrices(
-            pin::Data &data,
-            const std::vector<bool> &contact_state,
-            const ConstVectorRef &v,
-            const ConstVectorRef &a,
-            const ConstVectorRef &tau,
-            const ConstVectorRef &forces,
-            const ConstMatrixRef &M);
+        void computeMatrices(const std::vector<bool> &contact_state,
+                             const ConstVectorRef &v,
+                             const ConstVectorRef &a,
+                             const ConstVectorRef &tau,
+                             const ConstVectorRef &forces,
+                             const ConstMatrixRef &M);
+
+        void updatePinocchioData(const ConstVectorRef &q, const ConstVectorRef &v);
 
     public:
         explicit RelaxedWbc(const RelaxedWbcSettings &settings, const pin::Model &model);
 
-        void solveQP(
-            pin::Data &data,
-            const std::vector<bool> &contact_state,
-            const ConstVectorRef &v,
-            const ConstVectorRef &a,
-            const ConstVectorRef &tau,
-            const ConstVectorRef &forces,
-            const ConstMatrixRef &M);
+        void solveQP(const std::vector<bool> &contact_state,
+                     const ConstVectorRef &q,
+                     const ConstVectorRef &v,
+                     const ConstVectorRef &a,
+                     const ConstVectorRef &tau,
+                     const ConstVectorRef &forces,
+                     const ConstMatrixRef &M);
 
         Eigen::MatrixXd getA()
         {

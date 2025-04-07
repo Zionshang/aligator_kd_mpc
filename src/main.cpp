@@ -209,14 +209,13 @@ int main(int argc, char const *argv[])
 
         ////////////////////// 松弛WBC //////////////////////
         mpc.getDataHandler().updateInternalData(x_measure, true);
-        relaxed_wbc.solveQP(
-            mpc.getDataHandler().getData(),
-            contact_states,
-            x_measure.tail(model.nv),
-            a_interp,
-            VectorXd::Zero(12),
-            f_interp,
-            mpc.getDataHandler().getData().M);
+        relaxed_wbc.solveQP(contact_states,
+                            x_measure.head(nq),
+                            x_measure.tail(nv),
+                            a_interp,
+                            VectorXd::Zero(12),
+                            f_interp,
+                            mpc.getDataHandler().getData().M);
         webots.sendCmd(relaxed_wbc.solved_torque_);
 
         itr++;
