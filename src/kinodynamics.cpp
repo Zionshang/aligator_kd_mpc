@@ -209,10 +209,17 @@ namespace simple_mpc
     std::map<std::string, bool> contact_phase;
     std::map<std::string, pinocchio::SE3> contact_pose;
     std::map<std::string, Eigen::VectorXd> contact_force;
+
+    // todo: 更优雅的方法
+    const auto &model = model_handler_.getModel();
+    pin::Data data(model);
+    pin::forwardKinematics(model, data, x0.head(model.nq));
+    pin::updateFramePlacements(model, data);
+
     for (auto &name : model_handler_.getFeetNames())
     {
       contact_phase.insert({name, true});
-      contact_pose.insert({name, pinocchio::SE3::Identity()}); // ? 这里设置为Identity是否合理？
+      contact_pose.insert({name, data.oMf[model_handler_.getFootId(name)]}); // ? 这里设置为Identity是否合理？
       contact_force.insert({name, force_ref});
     }
 

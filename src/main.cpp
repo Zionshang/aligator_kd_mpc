@@ -90,11 +90,11 @@ int main(int argc, char const *argv[])
     mpc_settings.TOL = 1e-4;
     mpc_settings.mu_init = 1e-8;
     mpc_settings.max_iters = 1;
-    mpc_settings.num_threads = 1;
+    mpc_settings.num_threads = 8;
     mpc_settings.T_fly = T_ss;
     mpc_settings.T_contact = T_ds;
     mpc_settings.timestep = kd_settings.timestep;
-
+    mpc_settings.T = T;
     MPC mpc(mpc_settings, kd_problem);
 
     ////////////////////// 定义步态 //////////////////////
@@ -139,7 +139,7 @@ int main(int argc, char const *argv[])
     Rwbc_settings.mu = kd_settings.mu;
     Rwbc_settings.force_size = kd_settings.force_size;
     Rwbc_settings.w_acc = 1;
-    Rwbc_settings.w_force = 100;
+    Rwbc_settings.w_force = 10;
     Rwbc_settings.verbose = false;
     RelaxedWbc relaxed_wbc(Rwbc_settings, model_handler.getModel());
 
@@ -158,7 +158,7 @@ int main(int argc, char const *argv[])
     std::vector<VectorXd> vel_ref(mpc_settings.T, x_measure.tail(nv));
     std::vector<VectorXd> x_ref(mpc_settings.T, x_measure);
     VectorXd pos_ref_start = x_measure.head(nq);
-    double vx = 0.2;
+    double vx = 0.1;
     vel_ref[0](0) = vx;
 
     const double dt = 0.001; // Time step for integration
@@ -166,7 +166,6 @@ int main(int argc, char const *argv[])
     while (webots.isRunning())
     {
         webots.recvState(x_measure);
-
         // 设置参考轨迹
         pin::integrate(model, pos_ref_start, vel_ref[0] * dt, pos_ref[0]);
         pos_ref_start = pos_ref[0];
