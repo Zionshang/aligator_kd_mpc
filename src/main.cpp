@@ -90,7 +90,7 @@ int main(int argc, char const *argv[])
     mpc_settings.TOL = 1e-4;
     mpc_settings.mu_init = 1e-8;
     mpc_settings.max_iters = 1;
-    mpc_settings.num_threads = 8;
+    mpc_settings.num_threads = 1;
     mpc_settings.T_fly = T_ss;
     mpc_settings.T_contact = T_ds;
     mpc_settings.timestep = kd_settings.timestep;
@@ -151,7 +151,7 @@ int main(int argc, char const *argv[])
     int itr = 0;
     VectorXd a0, a1, forces0, forces1;
     std::vector<bool> contact_states;
-    std::vector<VectorXd> x_logger, rf_foot_ref_logger, rf_foot_logger;
+    std::vector<VectorXd> x_logger, fl_foot_ref_logger, fl_foot_logger, rr_foot_ref_logger, rr_foot_logger;
     int itr_mpc = 0;
 
     std::vector<VectorXd> pos_ref(mpc_settings.T, x_measure.head(nq));
@@ -179,8 +179,6 @@ int main(int argc, char const *argv[])
             x_ref[i].head(nq) = pos_ref[i];
             x_ref[i].tail(nv) = vel_ref[i];
         }
-        std::cout << "x_ref[0] = " << x_ref[0].transpose() << std::endl;
-        std::cout << "x_ref[end] = " << x_ref[mpc_settings.T - 1].transpose() << std::endl;
 
         // mpc.switchToStand();
         if (int(itr % 10) == 0)
@@ -198,10 +196,12 @@ int main(int argc, char const *argv[])
             itr = 0;
             itr_mpc++;
 
-            rf_foot_ref_logger.push_back(kd_problem->getReferenceFootPose(0, "FR_foot").translation());
+            fl_foot_ref_logger.push_back(kd_problem->getReferenceFootPose(0, "FL_foot").translation());
+            rr_foot_ref_logger.push_back(kd_problem->getReferenceFootPose(0, "RR_foot").translation());
             pinocchio::forwardKinematics(model_handler.getModel(), mpc.getDataHandler().getData(), x_measure.head(model_handler.getModel().nq));
             pinocchio::updateFramePlacements(model_handler.getModel(), mpc.getDataHandler().getData());
-            rf_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("FR_foot")].translation());
+            fl_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("FL_foot")].translation());
+            rr_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("RR_foot")].translation());
             std::cout << "--------------------------" << std::endl;
         }
         VectorXd a_interp = (double(N_simu) - itr) / double(N_simu) * a0 + itr / double(N_simu) * a1;
@@ -264,7 +264,9 @@ int main(int argc, char const *argv[])
     }
 #endif
     saveVectorsToCsv("x.csv", x_logger);
-    saveVectorsToCsv("fr_foot_ref.csv", rf_foot_ref_logger);
-    saveVectorsToCsv("fr_foot.csv", rf_foot_logger);
+    saveVectorsToCsv("fl_foot_ref.csv", fl_foot_ref_logger);
+    saveVectorsToCsv("fl_foot.csv", fl_foot_logger);
+    saveVectorsToCsv("rr_foot_ref.csv", rr_foot_ref_logger);
+    saveVectorsToCsv("rr_foot.csv", rr_foot_logger);
     return 0;
 }
