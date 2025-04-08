@@ -8,19 +8,24 @@ def load_points(file_path):
 
 def main():
     # 读取数据
-    logger_points = load_points("/home/zishang/cpp_workspace/aligator_kd_mpc/build/fr_foot.csv")
-    ref_logger_points = load_points("/home/zishang/cpp_workspace/aligator_kd_mpc/build/fr_foot_ref.csv")
-    
+    fl_foot = load_points("/home/zishang/cpp_workspace/aligator_kd_mpc/build/fl_foot.csv")
+    fl_foot_ref = load_points("/home/zishang/cpp_workspace/aligator_kd_mpc/build/fl_foot_ref.csv")
+    rr_foot = load_points("/home/zishang/cpp_workspace/aligator_kd_mpc/build/rr_foot.csv")
+    rr_foot_ref = load_points("/home/zishang/cpp_workspace/aligator_kd_mpc/build/rr_foot_ref.csv")
+
     # 设置三维绘图
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
     
     # 绘制数据点
-    ax.scatter(logger_points[:, 0], logger_points[:, 1], logger_points[:, 2],
-               c='red', marker='o', label='current')
-    ax.scatter(ref_logger_points[:, 0], ref_logger_points[:, 1], ref_logger_points[:, 2],
-               c='blue', marker='^', label='reference')
-    
+    ax.scatter(fl_foot[:, 0], fl_foot[:, 1], fl_foot[:, 2],
+               c='red', marker='o', label='fl_foot')
+    ax.scatter(fl_foot_ref[:, 0], fl_foot_ref[:, 1], fl_foot_ref[:, 2],
+               c='blue', marker='^', label='fl_foot_ref')
+    ax.scatter(rr_foot[:, 0], rr_foot[:, 1], rr_foot[:, 2],
+               c='green', marker='o', label='rr_foot')
+    ax.scatter(rr_foot_ref[:, 0], rr_foot_ref[:, 1], rr_foot_ref[:, 2],
+               c='purple', marker='^', label='rr_foot_ref')
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')
