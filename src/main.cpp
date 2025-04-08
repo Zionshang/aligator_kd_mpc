@@ -46,9 +46,9 @@ int main(int argc, char const *argv[])
 
     /////////////////////////////////////// 定义权重 ///////////////////////////////////////
     VectorXd w_basepos(6);
-    w_basepos << 1000, 1000, 1500, 300, 300, 100;
+    w_basepos << 100, 100, 1500, 300, 300, 100;
     VectorXd w_legpos(3);
-    w_legpos << 1, 1, 1;
+    w_legpos << 10, 10, 10;
     VectorXd w_basevel(6);
     w_basevel << 10, 10, 100, 30, 30, 10;
     VectorXd w_legvel(3);
@@ -81,7 +81,7 @@ int main(int argc, char const *argv[])
     auto kd_problem = std::make_shared<KinodynamicsOCP>(kd_settings, model_handler);
     kd_problem->createProblem(model_handler.getReferenceState(), T, force_size, gravity(2));
 
-    int T_ds = 10;
+    int T_ds = 0;
     int T_ss = 30;
 
     MPCSettings mpc_settings;
@@ -158,13 +158,17 @@ int main(int argc, char const *argv[])
     std::vector<VectorXd> vel_ref(mpc_settings.T, x_measure.tail(nv));
     std::vector<VectorXd> x_ref(mpc_settings.T, x_measure);
     VectorXd pos_ref_start = x_measure.head(nq);
-    double vx = 0.1;
-    vel_ref[0](0) = vx;
 
     const double dt = 0.001; // Time step for integration
 
     while (webots.isRunning())
     {
+        if (itr_mpc > 100)
+        {
+            double vx = 0.4;
+            vel_ref[0](0) = vx;
+        }
+
         webots.recvState(x_measure);
         // 设置参考轨迹
         pin::integrate(model, pos_ref_start, vel_ref[0] * dt, pos_ref[0]);
@@ -175,19 +179,23 @@ int main(int argc, char const *argv[])
         for (int i = 1; i < mpc_settings.T; i++)
         {
             vel_ref[i] = vel_ref[i - 1];
-            pin::integrate(model, pos_ref[i - 1], vel_ref[i - 1] * dt, pos_ref[i]);
+            pin::integrate(model, pos_ref[i - 1], vel_ref[i - 1] * kd_settings.timestep, pos_ref[i]);
             x_ref[i].head(nq) = pos_ref[i];
             x_ref[i].tail(nv) = vel_ref[i];
         }
-        std::cout << "x_ref[0] = " << x_ref[0].transpose() << std::endl;
-        std::cout << "x_ref[end] = " << x_ref[mpc_settings.T - 1].transpose() << std::endl;
 
         // mpc.switchToStand();
         if (int(itr % 10) == 0)
         {
             std::cout << "itr_mpc = " << itr_mpc << std::endl;
             mpc.setReferenceState(x_ref);
+
+            auto start_time = std::chrono::high_resolution_clock::now();
             mpc.iterate(x_measure);
+            auto end_time = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double, std::milli> elapsed = end_time - start_time;
+            std::cout << "MPC iteration time: " << elapsed.count() << " ms" << std::endl;
+
             a0 = mpc.getStateDerivative(0).tail(model.nv);
             a1 = mpc.getStateDerivative(1).tail(model.nv);
             a0.tail(12) = mpc.us_[0].tail(12); // ? 这里是否有必要？
@@ -208,7 +216,6 @@ int main(int argc, char const *argv[])
         VectorXd f_interp = (double(N_simu) - itr) / double(N_simu) * forces0 + itr / double(N_simu) * forces1;
 
         ////////////////////// 松弛WBC //////////////////////
-        mpc.getDataHandler().updateInternalData(x_measure, true);
         relaxed_wbc.solveQP(contact_states,
                             x_measure.head(nq),
                             x_measure.tail(nv),
