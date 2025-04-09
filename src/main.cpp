@@ -24,8 +24,10 @@ int main(int argc, char const *argv[])
 {
     // Load pinocchio model from example robot data
     Model model;
-    std::string urdf_path = EXAMPLE_ROBOT_DATA_MODEL_DIR "/go2_description/urdf/go2.urdf";
-    std::string srdf_path = EXAMPLE_ROBOT_DATA_MODEL_DIR "/go2_description/srdf/go2.srdf";
+    // std::string urdf_path = EXAMPLE_ROBOT_DATA_MODEL_DIR "/go2_description/urdf/go2.urdf";
+    // std::string srdf_path = EXAMPLE_ROBOT_DATA_MODEL_DIR "/go2_description/srdf/go2.srdf";
+    std::string urdf_path = "/home/zishang/cpp_workspace/aligator_kd_mpc/robot/galileo_mini/urdf/galileo_mini.urdf";
+    std::string srdf_path = "/home/zishang/cpp_workspace/aligator_kd_mpc/robot/galileo_mini/srdf/galileo_mini.srdf";
 
     pinocchio::urdf::buildModel(urdf_path, JointModelFreeFlyer(), model);
     pinocchio::srdf::loadReferenceConfigurations(model, srdf_path, false);
@@ -34,10 +36,10 @@ int main(int argc, char const *argv[])
 
     std::string base_joint_name = "root_joint";
     RobotModelHandler model_handler(model, "standing", base_joint_name);
-    model_handler.addFoot("FL_foot", base_joint_name, SE3(Quaterniond::Identity(), Vector3d(0.17, 0.15, 0.0)));
-    model_handler.addFoot("FR_foot", base_joint_name, SE3(Quaterniond::Identity(), Vector3d(0.17, -0.15, 0.0)));
-    model_handler.addFoot("RL_foot", base_joint_name, SE3(Quaterniond::Identity(), Vector3d(-0.24, 0.15, 0.0)));
-    model_handler.addFoot("RR_foot", base_joint_name, SE3(Quaterniond::Identity(), Vector3d(-0.24, -0.15, 0.0)));
+    model_handler.addFoot("FL_foot_link", base_joint_name, SE3(Quaterniond::Identity(), Vector3d(0.17, 0.15, 0.0)));
+    model_handler.addFoot("FR_foot_link", base_joint_name, SE3(Quaterniond::Identity(), Vector3d(0.17, -0.15, 0.0)));
+    model_handler.addFoot("HL_foot_link", base_joint_name, SE3(Quaterniond::Identity(), Vector3d(-0.24, 0.15, 0.0)));
+    model_handler.addFoot("HR_foot_link", base_joint_name, SE3(Quaterniond::Identity(), Vector3d(-0.24, -0.15, 0.0)));
 
     int force_size = 3;
     int nk = model_handler.getFeetNames().size();
@@ -95,31 +97,31 @@ int main(int argc, char const *argv[])
 
     ////////////////////// 定义步态 //////////////////////
     std::map<std::string, bool> contact_phase_quadru = {
-        {"FL_foot", true},
-        {"FR_foot", true},
-        {"RL_foot", true},
-        {"RR_foot", true},
+        {"FL_foot_link", true},
+        {"FR_foot_link", true},
+        {"HL_foot_link", true},
+        {"HR_foot_link", true},
     };
 
     std::map<std::string, bool> contact_phase_lift_FL = {
-        {"FL_foot", false},
-        {"FR_foot", true},
-        {"RL_foot", true},
-        {"RR_foot", false},
+        {"FL_foot_link", false},
+        {"FR_foot_link", true},
+        {"HL_foot_link", true},
+        {"HR_foot_link", false},
     };
 
     std::map<std::string, bool> contact_phase_lift_FR = {
-        {"FL_foot", true},
-        {"FR_foot", false},
-        {"RL_foot", false},
-        {"RR_foot", true},
+        {"FL_foot_link", true},
+        {"FR_foot_link", false},
+        {"HL_foot_link", false},
+        {"HR_foot_link", true},
     };
 
     std::map<std::string, bool> contact_phase_lift = {
-        {"FL_foot", false},
-        {"FR_foot", false},
-        {"RL_foot", false},
-        {"RR_foot", false},
+        {"FL_foot_link", false},
+        {"FR_foot_link", false},
+        {"HL_foot_link", false},
+        {"HR_foot_link", false},
     };
     std::vector<std::map<std::string, bool>> contact_phases;
     contact_phases.insert(contact_phases.end(), T_ds, contact_phase_quadru);
@@ -188,7 +190,7 @@ int main(int argc, char const *argv[])
             std::cout << "itr_mpc = " << itr_mpc << std::endl;
             std::cout << "x_ref[0] = " << x_ref[0].transpose() << std::endl;
             std::cout << "x_ref[end] = " << x_ref.back().transpose() << std::endl;
-            
+
             mpc.setReferenceState(x_ref);
 
             auto start_time = std::chrono::high_resolution_clock::now();
@@ -206,21 +208,21 @@ int main(int argc, char const *argv[])
             itr_mpc++;
 
 #ifdef LOGGING
-            // fl_foot_ref_logger.push_back(kd_problem->getReferenceFootPose(0, "FL_foot").translation());
-            // rr_foot_ref_logger.push_back(kd_problem->getReferenceFootPose(0, "RR_foot").translation());
+            // fl_foot_ref_logger.push_back(kd_problem->getReferenceFootPose(0, "FL_foot_link").translation());
+            // rr_foot_ref_logger.push_back(kd_problem->getReferenceFootPose(0, "HR_foot_link").translation());
             // pinocchio::forwardKinematics(model_handler.getModel(), mpc.getDataHandler().getData(), x_measure.head(model_handler.getModel().nq));
             // pinocchio::updateFramePlacements(model_handler.getModel(), mpc.getDataHandler().getData());
-            // fl_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("FL_foot")].translation());
-            // rr_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("RR_foot")].translation());
+            // fl_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("FL_foot_link")].translation());
+            // rr_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("HR_foot_link")].translation());
 
             if (itr_mpc == 100)
             {
                 for (int i = 0; i < kd_problem->getSize(); i++)
                 {
-                    fl_foot_ref_logger.push_back(kd_problem->getReferenceFootPose(i, "FL_foot").translation());
+                    fl_foot_ref_logger.push_back(kd_problem->getReferenceFootPose(i, "FL_foot_link").translation());
                     pinocchio::forwardKinematics(model_handler.getModel(), mpc.getDataHandler().getData(), mpc.xs_[i + 1].head(model_handler.getModel().nq));
                     pinocchio::updateFramePlacements(model_handler.getModel(), mpc.getDataHandler().getData());
-                    fl_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("FL_foot")].translation());
+                    fl_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("FL_foot_link")].translation());
                 }
             }
 
@@ -280,10 +282,10 @@ int main(int argc, char const *argv[])
         x_measure = mpc.xs_[1];
 
         x_logger.push_back(x_measure);
-        rf_foot_ref_logger.push_back(kd_problem->getReferenceFootPose(0, "FR_foot").translation());
+        rf_foot_ref_logger.push_back(kd_problem->getReferenceFootPose(0, "FR_foot_link").translation());
         pinocchio::forwardKinematics(model_handler.getModel(), mpc.getDataHandler().getData(), x_measure.head(model_handler.getModel().nq));
         pinocchio::updateFramePlacements(model_handler.getModel(), mpc.getDataHandler().getData());
-        rf_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("FR_foot")].translation());
+        rf_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("FR_foot_link")].translation());
 
         itr++;
         std::cout << "itr = " << itr << std::endl;

@@ -84,8 +84,8 @@ namespace simple_mpc
 
     as_.resize(ocp_handler_->getSize());
     // saveVectorsToCsv("initial_xs.csv", xs_);
-    // std::cout << ocp_handler_->getReferencePose(0, "FL_foot");
-    // std::cout << ocp_handler_->getReferencePose(ocp_handler_->getSize()-1, "FL_foot");
+    // std::cout << ocp_handler_->getReferencePose(0, "FL_foot_link");
+    // std::cout << ocp_handler_->getReferencePose(ocp_handler_->getSize()-1, "FL_foot_link");
 
     solver_->max_iters = settings_.max_iters;
 
@@ -227,7 +227,7 @@ namespace simple_mpc
       updateCycleTiming(true); // ?为什么这里是true
     }
     // // Print out contact_states_ for debugging
-    // std::vector<std::string> foot_names = {"FL_foot", "FR_foot", "RL_foot", "RR_foot"};
+    // std::vector<std::string> foot_names = {"FL_foot_link", "FR_foot_link", "HL_foot_link", "HR_foot_link"};
     // for (const auto &foot : foot_names)
     // {
     //   std::cout << foot.substr(0, 2) << " states: ";
