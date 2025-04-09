@@ -36,10 +36,10 @@ int main(int argc, char const *argv[])
 
     std::string base_joint_name = "root_joint";
     RobotModelHandler model_handler(model, "standing", base_joint_name);
-    model_handler.addFoot("FL_foot_link", base_joint_name, SE3(Quaterniond::Identity(), Vector3d(0.17, 0.15, 0.0)));
-    model_handler.addFoot("FR_foot_link", base_joint_name, SE3(Quaterniond::Identity(), Vector3d(0.17, -0.15, 0.0)));
-    model_handler.addFoot("HL_foot_link", base_joint_name, SE3(Quaterniond::Identity(), Vector3d(-0.24, 0.15, 0.0)));
-    model_handler.addFoot("HR_foot_link", base_joint_name, SE3(Quaterniond::Identity(), Vector3d(-0.24, -0.15, 0.0)));
+    model_handler.addFoot("FL_foot_link", base_joint_name, SE3(Quaterniond::Identity(), Vector3d(0.32, 0.18, 0.0)));
+    model_handler.addFoot("FR_foot_link", base_joint_name, SE3(Quaterniond::Identity(), Vector3d(0.32, -0.18, 0.0)));
+    model_handler.addFoot("HL_foot_link", base_joint_name, SE3(Quaterniond::Identity(), Vector3d(-0.32, 0.18, 0.0)));
+    model_handler.addFoot("HR_foot_link", base_joint_name, SE3(Quaterniond::Identity(), Vector3d(-0.32, -0.18, 0.0)));
 
     int force_size = 3;
     int nk = model_handler.getFeetNames().size();
@@ -165,7 +165,7 @@ int main(int argc, char const *argv[])
     {
         if (itr_mpc > mpc_settings.T)
         {
-            double vx = 0.4;
+            double vx = 1;
             vel_ref[0](0) = vx;
         }
 
@@ -174,8 +174,9 @@ int main(int argc, char const *argv[])
         pin::integrate(model, pos_ref_start, vel_ref[0] * dt, pos_ref[0]);
         pos_ref_start = pos_ref[0];
 
-        x_ref[0].head(nq) = pos_ref[0];
-        x_ref[0].tail(nv) = vel_ref[0];
+        x_ref[0].head(6) = x_measure.head(6);
+        x_ref[0].segment(nq, 6) = x_measure.segment(nq, 6);
+
         for (int i = 1; i < mpc_settings.T; i++)
         {
             vel_ref[i] = vel_ref[i - 1];
