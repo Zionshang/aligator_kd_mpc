@@ -8,6 +8,7 @@
 #include <pinocchio/algorithm/frames.hpp>
 #include "wbc/weighted_wbc.hpp"
 #include "wbc/relaxed_wbc.hpp"
+#include "utils/yaml_loader.hpp"
 
 using namespace simple_mpc;
 using Eigen::Quaterniond;
@@ -46,30 +47,23 @@ int main(int argc, char const *argv[])
     u0 << f_ref, f_ref, f_ref, f_ref, VectorXd::Zero(model_handler.getModel().nv - 6);
 
     /////////////////////////////////////// 定义权重 ///////////////////////////////////////
-    VectorXd w_basepos(6);
-    w_basepos << 100, 100, 1500, 300, 300, 100;
-    VectorXd w_legpos(3);
-    w_legpos << 1, 1, 1;
-    VectorXd w_basevel(6);
-    w_basevel << 10, 10, 100, 30, 30, 10;
-    VectorXd w_legvel(3);
-    w_legvel << 0.1, 0.1, 0.1;
+    std::string yaml_path = "/home/zishang/cpp_workspace/aligator_kd_mpc/config/parm.yaml";
+    YamlParams params(yaml_path);
+    params.printParams();
+
     VectorXd w_x_vec(2 * model.nv);
-    w_x_vec << w_basepos, w_legpos, w_legpos, w_legpos, w_legpos, w_basevel, w_legvel, w_legvel, w_legvel, w_legvel;
+    w_x_vec << params.w_basepos, params.w_legpos, params.w_legpos, params.w_legpos, params.w_legpos,
+        params.w_basevel, params.w_legvel, params.w_legvel, params.w_legvel, params.w_legvel;
 
-    VectorXd w_force(3);
-    w_force << 0.001, 0.001, 0.001;
     VectorXd w_u_vec(4 * force_size + model_handler.getModel().nv - 6);
-    w_u_vec << w_force, w_force, w_force, w_force, Eigen::VectorXd::Ones(model_handler.getModel().nv - 6) * 1e-5;
-
-    VectorXd w_frame_vec(3);
-    w_frame_vec << 500, 500, 500;
+    w_u_vec << params.w_force, params.w_force, params.w_force, params.w_force,
+        params.w_legacc, params.w_legacc, params.w_legacc,params.w_legacc;
 
     KinodynamicsSettings kd_settings;
     kd_settings.timestep = 0.01;
     kd_settings.w_x = w_x_vec.asDiagonal();
     kd_settings.w_u = w_u_vec.asDiagonal();
-    kd_settings.w_frame = w_frame_vec.asDiagonal();
+    kd_settings.w_frame = params.w_foot.asDiagonal();
     kd_settings.qmin = model_handler.getModel().lowerPositionLimit.tail(12);
     kd_settings.qmax = model_handler.getModel().upperPositionLimit.tail(12);
     kd_settings.gravity = gravity;
