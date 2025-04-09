@@ -51,8 +51,7 @@ namespace simple_mpc
                              const ConstVectorRef &v,
                              const ConstVectorRef &a,
                              const ConstVectorRef &tau,
-                             const ConstVectorRef &forces,
-                             const ConstMatrixRef &M);
+                             const ConstVectorRef &forces);
 
         void updatePinocchioData(const ConstVectorRef &q, const ConstVectorRef &v);
 
@@ -64,8 +63,7 @@ namespace simple_mpc
                      const ConstVectorRef &v,
                      const ConstVectorRef &a,
                      const ConstVectorRef &tau,
-                     const ConstVectorRef &forces,
-                     const ConstMatrixRef &M);
+                     const ConstVectorRef &forces);
 
         Eigen::MatrixXd getA()
         {

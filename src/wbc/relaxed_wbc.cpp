@@ -89,8 +89,7 @@ namespace simple_mpc
                                      const ConstVectorRef &v,
                                      const ConstVectorRef &a,
                                      const ConstVectorRef &tau,
-                                     const ConstVectorRef &forces,
-                                     const ConstMatrixRef &M)
+                                     const ConstVectorRef &forces)
     {
         // Reset matrices
         Jc_.setZero();
@@ -124,12 +123,12 @@ namespace simple_mpc
         }
 
         // Update equality matrices
-        A_.topLeftCorner(nv_, nv_) = M;
+        A_.topLeftCorner(nv_, nv_) = data_.M;
         A_.block(0, nv_, nv_, force_dim_) = -Jc_.transpose();
         A_.topRightCorner(nv_, nv_ - 6) = -S_;
         A_.bottomLeftCorner(force_dim_, nv_) = Jc_;
 
-        b_.head(nv_) = -data_.nle - M * a + Jc_.transpose() * forces + S_ * tau;
+        b_.head(nv_) = -data_.nle - data_.M * a + Jc_.transpose() * forces + S_ * tau;
         b_.tail(force_dim_) = -Jdot_v_ - Jc_ * a;
     }
 
@@ -138,11 +137,10 @@ namespace simple_mpc
                              const ConstVectorRef &v,
                              const ConstVectorRef &a,
                              const ConstVectorRef &tau,
-                             const ConstVectorRef &forces,
-                             const ConstMatrixRef &M)
+                             const ConstVectorRef &forces)
     {
         updatePinocchioData(q, v);
-        computeMatrices(contact_state, v, a, tau, forces, M);
+        computeMatrices(contact_state, v, a, tau, forces);
         qp_.update(H_, g_, A_, b_, C_, l_, u_, false);
         qp_.solve();
 
