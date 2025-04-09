@@ -78,7 +78,8 @@ namespace simple_mpc
     xs_ = solver_->results_.xs;
     us_ = solver_->results_.us;
     Ks_ = solver_->results_.getCtrlFeedbacks();
-
+    
+    as_.resize(ocp_handler_->getSize());
     // saveVectorsToCsv("initial_xs.csv", xs_);
     // std::cout << ocp_handler_->getReferencePose(0, "FL_foot");
     // std::cout << ocp_handler_->getReferencePose(ocp_handler_->getSize()-1, "FL_foot");
@@ -187,6 +188,11 @@ namespace simple_mpc
     xs_ = solver_->results_.xs;
     us_ = solver_->results_.us;
     Ks_ = solver_->results_.getCtrlFeedbacks();
+    for (int i = 0; i < ocp_handler_->getSize(); i++) // ? 放在MPC内部好还是外部好？
+    {
+      as_[i] = getStateDerivative(i).tail(ocp_handler_->getModelHandler().getModel().nv);
+    }
+    
   }
 
   void MPC::recedeWithCycle()

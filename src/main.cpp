@@ -9,6 +9,7 @@
 #include "wbc/weighted_wbc.hpp"
 #include "wbc/relaxed_wbc.hpp"
 #include "utils/yaml_loader.hpp"
+#include "interpolator.hpp"
 
 using namespace simple_mpc;
 using Eigen::Quaterniond;
@@ -140,6 +141,8 @@ int main(int argc, char const *argv[])
 
 ////////////////////// 设置仿真 //////////////////////
 #ifdef WEBOTS
+    Interpolator interpolator(model);
+
     int N_simu = 10;
     VectorXd x_measure = model_handler.getReferenceState();
     WebotsInterface webots;
@@ -191,10 +194,12 @@ int main(int argc, char const *argv[])
             std::chrono::duration<double, std::milli> elapsed = end_time - start_time;
             std::cout << "MPC iteration time: " << elapsed.count() << " ms" << std::endl;
 
-            a0 = mpc.getStateDerivative(0).tail(model.nv);
-            a1 = mpc.getStateDerivative(1).tail(model.nv);
-            a0.tail(12) = mpc.us_[0].tail(12); // ? 这里是否有必要？
-            a1.tail(12) = mpc.us_[1].tail(12);
+            // a0 = mpc.getStateDerivative(0).tail(model.nv);
+            // a1 = mpc.getStateDerivative(1).tail(model.nv);
+            // a0.tail(12) = mpc.us_[0].tail(12); // ? 这里是否有必要？
+            // a1.tail(12) = mpc.us_[1].tail(12);
+            a0 = mpc.as_[0];
+            a1 = mpc.as_[1];
             forces0 = mpc.us_[0].head(nk * force_size);
             forces1 = mpc.us_[1].head(nk * force_size);
             contact_states = mpc.ocp_handler_->getContactState(0);
@@ -211,8 +216,15 @@ int main(int argc, char const *argv[])
 #endif
             std::cout << "--------------------------" << std::endl;
         }
+
+        double delay = itr / double(N_simu) * kd_settings.timestep;
+
         VectorXd a_interp = (double(N_simu) - itr) / double(N_simu) * a0 + itr / double(N_simu) * a1;
         VectorXd f_interp = (double(N_simu) - itr) / double(N_simu) * forces0 + itr / double(N_simu) * forces1;
+
+        VectorXd acc_interp, u_interp;
+        interpolator.interpolateLinear(delay, kd_settings.timestep, mpc.as_, acc_interp);
+        interpolator.interpolateLinear(delay, dt, mpc.us_, u_interp);
 
         ////////////////////// 松弛WBC //////////////////////
         relaxed_wbc.solveQP(contact_states,
