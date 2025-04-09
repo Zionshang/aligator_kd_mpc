@@ -95,12 +95,12 @@ namespace simple_mpc
     void generateCycleHorizon(const std::vector<std::map<std::string, bool>> &contact_states);
 
     // Perform one iteration of MPC
-    void iterate(const ConstVectorRef &x);
+    void iterate(const ConstVectorRef &x, double current_time);
 
     void updateCycleTiming(const bool updateOnlyHorizon);
 
     // Recede the horizon
-    void recedeWithCycle();
+    void recedeWithCycle(double current_time);
 
     void setReferenceState(const std::vector<VectorXd> &x_ref) { x_ref_ = x_ref; }
 
@@ -147,6 +147,7 @@ namespace simple_mpc
     // Initial quantities
     VectorXd x0_;
     VectorXd u0_;
+    double last_recede_time_ = 0.0;
   };
 
 } // namespace simple_mpc

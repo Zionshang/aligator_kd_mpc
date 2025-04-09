@@ -162,13 +162,13 @@ namespace simple_mpc
     }
   }
 
-  void MPC::iterate(const ConstVectorRef &x)
+  void MPC::iterate(const ConstVectorRef &x, double current_time)
   {
 
     data_handler_->updateInternalData(x, false);
 
     // Recede all horizons
-    recedeWithCycle();
+    recedeWithCycle(current_time);
 
     // Update the feet and CoM references
     updateStepTrackerReferences();
@@ -197,24 +197,29 @@ namespace simple_mpc
     }
   }
 
-  void MPC::recedeWithCycle()
+  void MPC::recedeWithCycle(double current_time)
   {
     if (now_ == WALKING or ocp_handler_->getContactSupport(ocp_handler_->getSize() - 1) < ee_names_.size())
     {
 
       ocp_handler_->getProblem().replaceStageCircular(*cycle_horizon_[0]);
       solver_->cycleProblem(ocp_handler_->getProblem(), cycle_horizon_data_[0]); // ? 每次都是必须的吗？
-
-      rotate_vec_left(cycle_horizon_);
-      rotate_vec_left(cycle_horizon_data_);
-      rotate_vec_left(contact_states_);
-      for (auto const &name : ee_names_)
+      // std::cout << "current_time - last_recede_time_: " << current_time - last_recede_time_ << std::endl;
+      if (current_time - last_recede_time_ >= settings_.timestep)
       {
-        if (contact_states_[contact_states_.size() - 1].at(name) and
-            !contact_states_[contact_states_.size() - 2].at(name))
-          foot_land_times_.at(name).push_back((int)(contact_states_.size() + ocp_handler_->getSize()));
+        std::cout << "!!recedeWithCycle!!" << std::endl;
+        rotate_vec_left(cycle_horizon_);
+        rotate_vec_left(cycle_horizon_data_);
+        rotate_vec_left(contact_states_);
+        for (auto const &name : ee_names_)
+        {
+          if (contact_states_[contact_states_.size() - 1].at(name) and
+              !contact_states_[contact_states_.size() - 2].at(name))
+            foot_land_times_.at(name).push_back((int)(contact_states_.size() + ocp_handler_->getSize()));
+        }
+        updateCycleTiming(false); // ?为什么这里是false
+        last_recede_time_ = current_time;
       }
-      updateCycleTiming(false); // ?为什么这里是false
     }
     else
     {

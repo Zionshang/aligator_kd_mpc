@@ -63,7 +63,7 @@ int main(int argc, char const *argv[])
         params.w_legacc, params.w_legacc, params.w_legacc, params.w_legacc;
 
     KinodynamicsSettings kd_settings;
-    kd_settings.timestep = 0.01;
+    kd_settings.timestep = 0.04;
     kd_settings.w_x = w_x_vec.asDiagonal();
     kd_settings.w_u = w_u_vec.asDiagonal();
     kd_settings.w_frame = params.w_foot.asDiagonal();
@@ -75,34 +75,30 @@ int main(int argc, char const *argv[])
     kd_settings.kinematics_limits = true;
     kd_settings.force_cone = true;
 
-    int T = 50;
+    int T = 25;
     auto kd_problem = std::make_shared<KinodynamicsOCP>(kd_settings, model_handler);
     kd_problem->createProblem(model_handler.getReferenceState(), T, force_size, gravity(2));
 
-    int T_ds = 0;
-    int T_ss = 30;
+    double time_fly = 0.6;
+    // int T_fly = time_fly / kd_settings.timestep;
+    int T_fly = 15;
+
+    std::cout << "T_fly: " << T_fly << std::endl;
 
     MPCSettings mpc_settings;
     mpc_settings.swing_apex = 0.50;
     mpc_settings.support_force = -model_handler.getMass() * gravity(2);
     mpc_settings.TOL = 1e-4;
     mpc_settings.mu_init = 1e-8;
-    mpc_settings.max_iters = 1;
+    mpc_settings.max_iters = 2;
     mpc_settings.num_threads = 1;
-    mpc_settings.T_fly = T_ss;
-    mpc_settings.T_contact = T_ds;
+    mpc_settings.T_fly = T_fly;
+    mpc_settings.T_contact = 0;
     mpc_settings.timestep = kd_settings.timestep;
     mpc_settings.T = T;
     MPC mpc(mpc_settings, kd_problem);
 
     ////////////////////// 定义步态 //////////////////////
-    std::map<std::string, bool> contact_phase_quadru = {
-        {"FL_foot_link", true},
-        {"FR_foot_link", true},
-        {"HL_foot_link", true},
-        {"HR_foot_link", true},
-    };
-
     std::map<std::string, bool> contact_phase_lift_FL = {
         {"FL_foot_link", false},
         {"FR_foot_link", true},
@@ -116,19 +112,9 @@ int main(int argc, char const *argv[])
         {"HL_foot_link", false},
         {"HR_foot_link", true},
     };
-
-    std::map<std::string, bool> contact_phase_lift = {
-        {"FL_foot_link", false},
-        {"FR_foot_link", false},
-        {"HL_foot_link", false},
-        {"HR_foot_link", false},
-    };
     std::vector<std::map<std::string, bool>> contact_phases;
-    contact_phases.insert(contact_phases.end(), T_ds, contact_phase_quadru);
-    contact_phases.insert(contact_phases.end(), T_ss, contact_phase_lift_FL);
-    contact_phases.insert(contact_phases.end(), T_ds, contact_phase_quadru);
-    contact_phases.insert(contact_phases.end(), T_ss, contact_phase_lift_FR);
-    // contact_phases.insert(contact_phases.end(), T, contact_phase_quadru);
+    contact_phases.insert(contact_phases.end(), T_fly, contact_phase_lift_FL);
+    contact_phases.insert(contact_phases.end(), T_fly, contact_phase_lift_FR);
     mpc.generateCycleHorizon(contact_phases);
 
     ////////////////////// 定义松弛WBC //////////////////////
@@ -163,9 +149,11 @@ int main(int argc, char const *argv[])
 
     while (webots.isRunning())
     {
+        double current_time = webots.current_time();
+        // std::cout << "current_time: " << current_time << std::endl;
         if (itr_mpc > mpc_settings.T)
         {
-            double vx = 1;
+            double vx = 0.5;
             vel_ref[0](0) = vx;
         }
 
@@ -189,16 +177,16 @@ int main(int argc, char const *argv[])
         if (int(itr % 10) == 0)
         {
             std::cout << "itr_mpc = " << itr_mpc << std::endl;
-            std::cout << "x_ref[0] = " << x_ref[0].transpose() << std::endl;
-            std::cout << "x_ref[end] = " << x_ref.back().transpose() << std::endl;
+            // std::cout << "x_ref[0] = " << x_ref[0].transpose() << std::endl;
+            // std::cout << "x_ref[end] = " << x_ref.back().transpose() << std::endl;
 
             mpc.setReferenceState(x_ref);
 
             auto start_time = std::chrono::high_resolution_clock::now();
-            mpc.iterate(x_measure);
+            mpc.iterate(x_measure, current_time);
             auto end_time = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double, std::milli> elapsed = end_time - start_time;
-            std::cout << "MPC iteration time: " << elapsed.count() << " ms" << std::endl;
+            // std::cout << "MPC iteration time: " << elapsed.count() << " ms" << std::endl;
 
             a0 = mpc.as_[0];
             a1 = mpc.as_[1];
@@ -207,6 +195,14 @@ int main(int argc, char const *argv[])
             contact_states = mpc.ocp_handler_->getContactState(0);
             itr = 0;
             itr_mpc++;
+
+            // Print contact states in a single line
+            std::cout << "Contact states: ";
+            for (size_t i = 0; i < contact_states.size(); ++i)
+            {
+                std::cout << (contact_states[i] ? "1" : "0") << " ";
+            }
+            std::cout << std::endl;
 
 #ifdef LOGGING
             // fl_foot_ref_logger.push_back(kd_problem->getReferenceFootPose(0, "FL_foot_link").translation());
@@ -228,11 +224,11 @@ int main(int argc, char const *argv[])
             }
 
 #endif
-            mpc.testCost();
+            // mpc.testCost();
             std::cout << "--------------------------" << std::endl;
         }
 
-        double delay = itr / double(N_simu) * kd_settings.timestep;
+        double delay = itr * dt;
 
         VectorXd acc_interp, u_interp;
         interpolator.interpolateLinear(delay, kd_settings.timestep, mpc.as_, acc_interp);
