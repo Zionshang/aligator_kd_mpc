@@ -18,7 +18,7 @@ using Eigen::VectorXd;
 
 #define EXAMPLE_ROBOT_DATA_MODEL_DIR "/opt/openrobots/share/example-robot-data/robots"
 #define WEBOTS
-// #define LOGGING
+#define LOGGING
 
 int main(int argc, char const *argv[])
 {
@@ -161,7 +161,7 @@ int main(int argc, char const *argv[])
 
     while (webots.isRunning())
     {
-        if (itr_mpc > 100)
+        if (itr_mpc > mpc_settings.T)
         {
             double vx = 0.4;
             vel_ref[0](0) = vx;
@@ -203,12 +203,25 @@ int main(int argc, char const *argv[])
             itr_mpc++;
 
 #ifdef LOGGING
-            fl_foot_ref_logger.push_back(kd_problem->getReferenceFootPose(0, "FL_foot").translation());
-            rr_foot_ref_logger.push_back(kd_problem->getReferenceFootPose(0, "RR_foot").translation());
-            pinocchio::forwardKinematics(model_handler.getModel(), mpc.getDataHandler().getData(), x_measure.head(model_handler.getModel().nq));
-            pinocchio::updateFramePlacements(model_handler.getModel(), mpc.getDataHandler().getData());
-            fl_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("FL_foot")].translation());
-            rr_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("RR_foot")].translation());
+            // fl_foot_ref_logger.push_back(kd_problem->getReferenceFootPose(0, "FL_foot").translation());
+            // rr_foot_ref_logger.push_back(kd_problem->getReferenceFootPose(0, "RR_foot").translation());
+            // pinocchio::forwardKinematics(model_handler.getModel(), mpc.getDataHandler().getData(), x_measure.head(model_handler.getModel().nq));
+            // pinocchio::updateFramePlacements(model_handler.getModel(), mpc.getDataHandler().getData());
+            // fl_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("FL_foot")].translation());
+            // rr_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("RR_foot")].translation());
+
+            if (itr_mpc == mpc_settings.T) 
+            {
+                for (int i = 0; i < kd_problem->getSize(); i++)
+                {
+                    fl_foot_ref_logger.push_back(kd_problem->getReferenceFootPose(i, "FL_foot").translation());
+                    pinocchio::forwardKinematics(model_handler.getModel(), mpc.getDataHandler().getData(), mpc.xs_[i+1].head(model_handler.getModel().nq));
+                    pinocchio::updateFramePlacements(model_handler.getModel(), mpc.getDataHandler().getData());
+                    fl_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("FL_foot")].translation());
+                }
+                
+            }
+            
 #endif
             std::cout << "--------------------------" << std::endl;
         }

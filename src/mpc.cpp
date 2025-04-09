@@ -291,6 +291,13 @@ namespace simple_mpc
       next_pose_.head(2) = data_handler_->getRefFootPose(name).translation().head(2);
       next_pose_.head(2) += (velocity_base_.head(2) + velocity_base_[5] * twist_vect_) * (settings_.T_fly + settings_.T_contact) * settings_.timestep;
       next_pose_[2] = data_handler_->getFootPose(name).translation()[2];
+
+      // if (name == ee_names_[0])
+      // {
+      //   std::cout << "next_pose_: " << next_pose_.transpose() << std::endl;
+      //   std::cout << "current_pose_: " << data_handler_->getFootPose(name).translation().transpose() << std::endl;
+      // }
+
       foot_trajectories_.updateTrajectory(update, foot_land_time, data_handler_->getFootPose(name).translation(), next_pose_, name);
       pinocchio::SE3 pose_ref = pinocchio::SE3::Identity();
       for (unsigned long time = 0; time < ocp_handler_->getSize(); time++)
