@@ -136,6 +136,8 @@ namespace simple_mpc
     // Solution vectors for state and control
     std::vector<VectorXd> xs_;
     std::vector<VectorXd> us_;
+    std::vector<VectorXd> as_;
+
     // Riccati gains
     std::vector<MatrixXd> Ks_;
 
