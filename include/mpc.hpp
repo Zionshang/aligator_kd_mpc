@@ -102,8 +102,6 @@ namespace simple_mpc
     // Recede the horizon
     void recedeWithCycle();
 
-    void setTerminalReferencePose(const std::string &ee_name, const pinocchio::SE3 &pose_ref);
-
     void setReferenceState(const std::vector<VectorXd> &x_ref) { x_ref_ = x_ref; }
 
     // getters and setters
@@ -129,6 +127,8 @@ namespace simple_mpc
     void switchToWalk(const Vector6d &velocity_base);
 
     void switchToStand();
+
+    void testCost();
 
     // Footstep timings for each end effector
     std::map<std::string, std::vector<int>> foot_land_times_;

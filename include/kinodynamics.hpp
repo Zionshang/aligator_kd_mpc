@@ -92,7 +92,7 @@ namespace simple_mpc
     // 设置状态参考
     void setReferenceState(const std::size_t t, const ConstVectorRef &x_ref);
 
-    void setTerminalReferencePose(const std::string &ee_name, const pinocchio::SE3 &pose_ref);
+    void setTerminalReferenceState(const ConstVectorRef &x_ref);
 
     const Eigen::VectorXd getReferenceForce(const std::size_t i, const std::string &cost_name);
 

@@ -58,7 +58,7 @@ int main(int argc, char const *argv[])
 
     VectorXd w_u_vec(4 * force_size + model_handler.getModel().nv - 6);
     w_u_vec << params.w_force, params.w_force, params.w_force, params.w_force,
-        params.w_legacc, params.w_legacc, params.w_legacc,params.w_legacc;
+        params.w_legacc, params.w_legacc, params.w_legacc, params.w_legacc;
 
     KinodynamicsSettings kd_settings;
     kd_settings.timestep = 0.01;
@@ -186,6 +186,9 @@ int main(int argc, char const *argv[])
         if (int(itr % 10) == 0)
         {
             std::cout << "itr_mpc = " << itr_mpc << std::endl;
+            std::cout << "x_ref[0] = " << x_ref[0].transpose() << std::endl;
+            std::cout << "x_ref[end] = " << x_ref.back().transpose() << std::endl;
+            
             mpc.setReferenceState(x_ref);
 
             auto start_time = std::chrono::high_resolution_clock::now();
@@ -210,19 +213,19 @@ int main(int argc, char const *argv[])
             // fl_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("FL_foot")].translation());
             // rr_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("RR_foot")].translation());
 
-            if (itr_mpc == mpc_settings.T) 
+            if (itr_mpc == 100)
             {
                 for (int i = 0; i < kd_problem->getSize(); i++)
                 {
                     fl_foot_ref_logger.push_back(kd_problem->getReferenceFootPose(i, "FL_foot").translation());
-                    pinocchio::forwardKinematics(model_handler.getModel(), mpc.getDataHandler().getData(), mpc.xs_[i+1].head(model_handler.getModel().nq));
+                    pinocchio::forwardKinematics(model_handler.getModel(), mpc.getDataHandler().getData(), mpc.xs_[i + 1].head(model_handler.getModel().nq));
                     pinocchio::updateFramePlacements(model_handler.getModel(), mpc.getDataHandler().getData());
                     fl_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("FL_foot")].translation());
                 }
-                
             }
-            
+
 #endif
+            mpc.testCost();
             std::cout << "--------------------------" << std::endl;
         }
 

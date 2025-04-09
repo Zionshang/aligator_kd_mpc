@@ -8,10 +8,13 @@
 
 #include "mpc.hpp"
 #include "utils/logger.hpp"
+#include <aligator/modelling/multibody/frame-translation.hpp>
 
 namespace simple_mpc
 {
   using namespace aligator;
+  using FrameTranslationResidual = FrameTranslationResidualTpl<double>;
+
   constexpr std::size_t maxiters = 100;
 
   MPC::MPC(const MPCSettings &settings, std::shared_ptr<KinodynamicsOCP> problem)
@@ -78,7 +81,7 @@ namespace simple_mpc
     xs_ = solver_->results_.xs;
     us_ = solver_->results_.us;
     Ks_ = solver_->results_.getCtrlFeedbacks();
-    
+
     as_.resize(ocp_handler_->getSize());
     // saveVectorsToCsv("initial_xs.csv", xs_);
     // std::cout << ocp_handler_->getReferencePose(0, "FL_foot");
@@ -192,7 +195,6 @@ namespace simple_mpc
     {
       as_[i] = getStateDerivative(i).tail(ocp_handler_->getModelHandler().getModel().nv);
     }
-    
   }
 
   void MPC::recedeWithCycle()
@@ -271,6 +273,7 @@ namespace simple_mpc
     {
       ocp_handler_->setReferenceState(i, x_ref_[i]);
     }
+    ocp_handler_->setTerminalReferenceState(x_ref_[ocp_handler_->getSize() - 1]);
 
     velocity_base_ = x_ref_[0].segment(getModelHandler().getModel().nq, 6);
     for (auto const &name : ee_names_)
@@ -308,11 +311,6 @@ namespace simple_mpc
     }
   }
 
-  void MPC::setTerminalReferencePose(const std::string &ee_name, const pinocchio::SE3 &pose_ref)
-  {
-    ocp_handler_->setTerminalReferencePose(ee_name, pose_ref);
-  }
-
   TrajOptProblem &MPC::getTrajOptProblem()
   {
     return ocp_handler_->getProblem();
@@ -328,6 +326,46 @@ namespace simple_mpc
   {
     now_ = STANDING;
     velocity_base_.setZero();
+  }
+
+  void MPC::testCost()
+  {
+    double state_cost = 0, control_cost = 0, foot_cost = 0;
+    for (size_t i = 0; i < ocp_handler_->getSize(); i++)
+    {
+      CostStack *cs = ocp_handler_->getCostStack(i);
+      QuadraticStateCost *qsc = cs->getComponent<QuadraticStateCost>("state_cost");
+      auto data_qsc = qsc->createData();
+      qsc->evaluate(xs_[i + 1], us_[i], *data_qsc);
+      state_cost += data_qsc->value_;
+
+      QuadraticControlCost *qcc = cs->getComponent<QuadraticControlCost>("control_cost");
+      auto data_qcc = qcc->createData();
+      qcc->evaluate(xs_[i + 1], us_[i], *data_qcc);
+      control_cost += data_qcc->value_;
+
+      for (auto const &name : ocp_handler_->getModelHandler().getFeetNames())
+      {
+        QuadraticResidualCost *qrc = cs->getComponent<QuadraticResidualCost>(name + "_pose_cost");
+        auto data_qrc = qrc->createData();
+        qrc->evaluate(xs_[i + 1], us_[i], *data_qrc);
+        foot_cost += data_qrc->value_;
+
+        // FrameTranslationResidual *cfr = qrc->getResidual<FrameTranslationResidual>();
+        // auto data_cfr = cfr->createData();
+        // cfr->evaluate(xs_[i + 1], *data_cfr);
+        // if (name == ocp_handler_->getModelHandler().getFeetNames()[0])
+        // {
+        //   std::cout << data_cfr->value_.transpose() << std::endl;
+        // }
+      }
+    }
+
+    std::cout << "State cost: " << state_cost << std::endl;
+    std::cout << "Control cost: " << control_cost << std::endl;
+    std::cout << "Foot cost: " << foot_cost << std::endl;
+    std::cout << "Total cost: " << state_cost + control_cost + foot_cost << std::endl;
+    std::cout << "Total cost2: " << solver_->workspace_.problem_data.cost_ << std::endl;
   }
 
 } // namespace simple_mpc

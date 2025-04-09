@@ -53,7 +53,7 @@ namespace simple_mpc
     rcost.addCost("state_cost", QuadraticStateCost(space, nu_, x0_, settings_.w_x));
     rcost.addCost("control_cost", QuadraticControlCost(space, control_ref_, settings_.w_u));
 
-    for (auto const &name : model_handler_.getFeetNames()) // todo: 改成只考虑摆动腿
+    for (auto const &name : model_handler_.getFeetNames())
     {
       FrameTranslationResidual frame_residual = FrameTranslationResidual(
           space.ndx(), nu_, model_handler_.getModel(), contact_pose.at(name).translation(),
@@ -68,7 +68,7 @@ namespace simple_mpc
     IntegratorSemiImplEuler dyn_model = IntegratorSemiImplEuler(ode, settings_.timestep);
     StageModel stm = StageModel(rcost, dyn_model);
 
-    if (settings_.kinematics_limits) // todo: 测试会影响多少计算时间
+    if (settings_.kinematics_limits)
     {
       StateErrorResidual state_fn = StateErrorResidual(space, nu_, space.neutral());
       std::vector<int> state_id;
@@ -122,13 +122,11 @@ namespace simple_mpc
     qsc->setTarget(x_ref);
   }
 
-  // ? 这里是不是有问题，终端成本应该没有_pose_cost
-  void KinodynamicsOCP::setTerminalReferencePose(const std::string &ee_name, const pinocchio::SE3 &pose_ref)
+  void KinodynamicsOCP::setTerminalReferenceState(const ConstVectorRef &x_ref)
   {
     CostStack *cs = getTerminalCostStack();
-    QuadraticResidualCost *qrc = cs->getComponent<QuadraticResidualCost>(ee_name + "_pose_cost");
-    FrameTranslationResidual *cfr = qrc->getResidual<FrameTranslationResidual>();
-    cfr->setReference(pose_ref.translation());
+    QuadraticStateCost *qsc = cs->getComponent<QuadraticStateCost>("term_state_cost");
+    qsc->setTarget(x_ref);
   }
 
   void KinodynamicsOCP::computeControlFromForces(const std::map<std::string, Eigen::VectorXd> &force_refs)
@@ -187,7 +185,7 @@ namespace simple_mpc
     auto ter_space = MultibodyPhaseSpace(model_handler_.getModel());
     auto term_cost = CostStack(ter_space, nu_);
 
-    term_cost.addCost("state_cost", QuadraticStateCost(ter_space, nu_, x0_, settings_.w_x));
+    term_cost.addCost("term_state_cost", QuadraticStateCost(ter_space, nu_, x0_, settings_.w_x));
 
     return term_cost;
   }
@@ -219,7 +217,7 @@ namespace simple_mpc
     for (auto &name : model_handler_.getFeetNames())
     {
       contact_phase.insert({name, true});
-      contact_pose.insert({name, data.oMf[model_handler_.getFootId(name)]}); // ? 这里设置为Identity是否合理？
+      contact_pose.insert({name, data.oMf[model_handler_.getFootId(name)]});
       contact_force.insert({name, force_ref});
     }
 
