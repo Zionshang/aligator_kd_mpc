@@ -16,6 +16,7 @@ using Eigen::VectorXd;
 
 #define EXAMPLE_ROBOT_DATA_MODEL_DIR "/opt/openrobots/share/example-robot-data/robots"
 #define WEBOTS
+// #define LOGGING
 
 int main(int argc, char const *argv[])
 {
@@ -48,7 +49,7 @@ int main(int argc, char const *argv[])
     VectorXd w_basepos(6);
     w_basepos << 100, 100, 1500, 300, 300, 100;
     VectorXd w_legpos(3);
-    w_legpos << 10, 10, 10;
+    w_legpos << 1, 1, 1;
     VectorXd w_basevel(6);
     w_basevel << 10, 10, 100, 30, 30, 10;
     VectorXd w_legvel(3);
@@ -62,7 +63,7 @@ int main(int argc, char const *argv[])
     w_u_vec << w_force, w_force, w_force, w_force, Eigen::VectorXd::Ones(model_handler.getModel().nv - 6) * 1e-5;
 
     VectorXd w_frame_vec(3);
-    w_frame_vec << 5000, 5000, 5000;
+    w_frame_vec << 500, 500, 500;
 
     KinodynamicsSettings kd_settings;
     kd_settings.timestep = 0.01;
@@ -206,12 +207,14 @@ int main(int argc, char const *argv[])
             itr = 0;
             itr_mpc++;
 
+#ifdef LOGGING
             fl_foot_ref_logger.push_back(kd_problem->getReferenceFootPose(0, "FL_foot").translation());
             rr_foot_ref_logger.push_back(kd_problem->getReferenceFootPose(0, "RR_foot").translation());
             pinocchio::forwardKinematics(model_handler.getModel(), mpc.getDataHandler().getData(), x_measure.head(model_handler.getModel().nq));
             pinocchio::updateFramePlacements(model_handler.getModel(), mpc.getDataHandler().getData());
             fl_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("FL_foot")].translation());
             rr_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("RR_foot")].translation());
+#endif
             std::cout << "--------------------------" << std::endl;
         }
         VectorXd a_interp = (double(N_simu) - itr) / double(N_simu) * a0 + itr / double(N_simu) * a1;
