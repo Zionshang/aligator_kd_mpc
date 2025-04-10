@@ -29,6 +29,7 @@ file(GLOB_RECURSE SRC_LIST
   src/wbc/relaxed_wbc.cpp
   src/utils/logger.cpp
   src/interpolator.cpp
+  src/planner/gait_schedule.cpp
 )
 add_executable(aligator_kd_mpc ${SRC_LIST} src/main.cpp)
 target_link_libraries(aligator_kd_mpc pinocchio::pinocchio)

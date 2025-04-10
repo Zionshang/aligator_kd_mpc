@@ -50,5 +50,7 @@ namespace simple_mpc
 
   using Vector6d = Eigen::Matrix<double, 6, 1>;
   using Vector7d = Eigen::Matrix<double, 7, 1>;
-
+  using Eigen::Vector4d;
+  using Eigen::Vector4i;
+  
 } // namespace simple_mpc
