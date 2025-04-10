@@ -10,6 +10,7 @@
 #include "wbc/relaxed_wbc.hpp"
 #include "utils/yaml_loader.hpp"
 #include "interpolator.hpp"
+#include "ctrl_component.hpp"
 
 using namespace simple_mpc;
 using Eigen::Quaterniond;
@@ -63,7 +64,7 @@ int main(int argc, char const *argv[])
         params.w_legacc, params.w_legacc, params.w_legacc, params.w_legacc;
 
     KinodynamicsSettings kd_settings;
-    kd_settings.timestep = 0.04;
+    kd_settings.timestep = 0.01;
     kd_settings.w_x = w_x_vec.asDiagonal();
     kd_settings.w_u = w_u_vec.asDiagonal();
     kd_settings.w_frame = params.w_foot.asDiagonal();
@@ -72,16 +73,14 @@ int main(int argc, char const *argv[])
     kd_settings.gravity = gravity;
     kd_settings.mu = 0.8;
     kd_settings.force_size = force_size;
-    kd_settings.kinematics_limits = true;
+    kd_settings.kinematics_limits = false;
     kd_settings.force_cone = true;
 
-    int T = 25;
+    int T = 50;
     auto kd_problem = std::make_shared<KinodynamicsOCP>(kd_settings, model_handler);
     kd_problem->createProblem(model_handler.getReferenceState(), T, force_size, gravity(2));
 
-    double time_fly = 0.6;
-    // int T_fly = time_fly / kd_settings.timestep;
-    int T_fly = 15;
+    int T_fly = 30;
 
     std::cout << "T_fly: " << T_fly << std::endl;
 
@@ -90,8 +89,8 @@ int main(int argc, char const *argv[])
     mpc_settings.support_force = -model_handler.getMass() * gravity(2);
     mpc_settings.TOL = 1e-4;
     mpc_settings.mu_init = 1e-8;
-    mpc_settings.max_iters = 2;
-    mpc_settings.num_threads = 1;
+    mpc_settings.max_iters = 10;
+    mpc_settings.num_threads = 8;
     mpc_settings.T_fly = T_fly;
     mpc_settings.T_contact = 0;
     mpc_settings.timestep = kd_settings.timestep;
@@ -130,6 +129,8 @@ int main(int argc, char const *argv[])
 ////////////////////// 设置仿真 //////////////////////
 #ifdef WEBOTS
     Interpolator interpolator(model);
+    BodyState body_state;
+    FootState foot_state, foot_state_ref;
 
     int N_simu = 10;
     VectorXd x_measure = model_handler.getReferenceState();
@@ -153,11 +154,23 @@ int main(int argc, char const *argv[])
         // std::cout << "current_time: " << current_time << std::endl;
         if (itr_mpc > mpc_settings.T)
         {
-            double vx = 0.5;
+            double vx = 0;
             vel_ref[0](0) = vx;
         }
 
         webots.recvState(x_measure);
+        body_state.pos = x_measure.head(3);
+        body_state.quat = Quaterniond(x_measure(6), x_measure(3), x_measure(4), x_measure(5));
+        body_state.vel = body_state.quat.toRotationMatrix() * x_measure.segment(nq, 3);
+        body_state.angvel = body_state.quat.toRotationMatrix() * x_measure.segment(nq + 3, 3);
+
+        pinocchio::forwardKinematics(model_handler.getModel(), mpc.getDataHandler().getData(), x_measure.head(model_handler.getModel().nq));
+        pinocchio::updateFramePlacements(model_handler.getModel(), mpc.getDataHandler().getData());
+        foot_state.pos.col(0) = mpc.getDataHandler().getData().oMf[model_handler.getFootId("FL_foot_link")].translation();
+        foot_state.pos.col(1) = mpc.getDataHandler().getData().oMf[model_handler.getFootId("FR_foot_link")].translation();
+        foot_state.pos.col(2) = mpc.getDataHandler().getData().oMf[model_handler.getFootId("HL_foot_link")].translation();
+        foot_state.pos.col(3) = mpc.getDataHandler().getData().oMf[model_handler.getFootId("HR_foot_link")].translation();
+
         // 设置参考轨迹
         pin::integrate(model, pos_ref_start, vel_ref[0] * dt, pos_ref[0]);
         pos_ref_start = pos_ref[0];
@@ -176,6 +189,7 @@ int main(int argc, char const *argv[])
         // mpc.switchToStand();
         if (int(itr % 10) == 0)
         {
+            mpc.setCtrlComponent(body_state, foot_state, foot_state_ref);
             std::cout << "itr_mpc = " << itr_mpc << std::endl;
             // std::cout << "x_ref[0] = " << x_ref[0].transpose() << std::endl;
             // std::cout << "x_ref[end] = " << x_ref.back().transpose() << std::endl;
@@ -196,32 +210,33 @@ int main(int argc, char const *argv[])
             itr = 0;
             itr_mpc++;
 
-            // Print contact states in a single line
-            std::cout << "Contact states: ";
-            for (size_t i = 0; i < contact_states.size(); ++i)
-            {
-                std::cout << (contact_states[i] ? "1" : "0") << " ";
-            }
-            std::cout << std::endl;
+            std::cout << "forces0: " << forces0.transpose() << std::endl;
+            // // Print contact states in a single line
+            // std::cout << "Contact states: ";
+            // for (size_t i = 0; i < contact_states.size(); ++i)
+            // {
+            //     std::cout << (contact_states[i] ? "1" : "0") << " ";
+            // }
+            // std::cout << std::endl;
 
 #ifdef LOGGING
-            // fl_foot_ref_logger.push_back(kd_problem->getReferenceFootPose(0, "FL_foot_link").translation());
-            // rr_foot_ref_logger.push_back(kd_problem->getReferenceFootPose(0, "HR_foot_link").translation());
-            // pinocchio::forwardKinematics(model_handler.getModel(), mpc.getDataHandler().getData(), x_measure.head(model_handler.getModel().nq));
-            // pinocchio::updateFramePlacements(model_handler.getModel(), mpc.getDataHandler().getData());
-            // fl_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("FL_foot_link")].translation());
-            // rr_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("HR_foot_link")].translation());
+            fl_foot_ref_logger.push_back(kd_problem->getReferenceFootPose(0, "FL_foot_link").translation());
+            rr_foot_ref_logger.push_back(kd_problem->getReferenceFootPose(0, "HR_foot_link").translation());
+            pinocchio::forwardKinematics(model_handler.getModel(), mpc.getDataHandler().getData(), x_measure.head(model_handler.getModel().nq));
+            pinocchio::updateFramePlacements(model_handler.getModel(), mpc.getDataHandler().getData());
+            fl_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("FL_foot_link")].translation());
+            rr_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("HR_foot_link")].translation());
 
-            if (itr_mpc == 100)
-            {
-                for (int i = 0; i < kd_problem->getSize(); i++)
-                {
-                    fl_foot_ref_logger.push_back(kd_problem->getReferenceFootPose(i, "FL_foot_link").translation());
-                    pinocchio::forwardKinematics(model_handler.getModel(), mpc.getDataHandler().getData(), mpc.xs_[i + 1].head(model_handler.getModel().nq));
-                    pinocchio::updateFramePlacements(model_handler.getModel(), mpc.getDataHandler().getData());
-                    fl_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("FL_foot_link")].translation());
-                }
-            }
+            // if (itr_mpc == 100)
+            // {
+            //     for (int i = 0; i < kd_problem->getSize(); i++)
+            //     {
+            //         fl_foot_ref_logger.push_back(kd_problem->getReferenceFootPose(i, "FL_foot_link").translation());
+            //         pinocchio::forwardKinematics(model_handler.getModel(), mpc.getDataHandler().getData(), mpc.xs_[i + 1].head(model_handler.getModel().nq));
+            //         pinocchio::updateFramePlacements(model_handler.getModel(), mpc.getDataHandler().getData());
+            //         fl_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("FL_foot_link")].translation());
+            //     }
+            // }
 
 #endif
             // mpc.testCost();

@@ -16,6 +16,7 @@
 #include <aligator/modelling/function-xpr-slice.hpp>
 #include <proxsuite-nlp/modelling/constraints/box-constraint.hpp>
 #include <proxsuite-nlp/modelling/constraints/negative-orthant.hpp>
+#include <proxsuite-nlp/modelling/spaces/multibody.hpp>
 
 namespace simple_mpc
 {
@@ -30,6 +31,7 @@ namespace simple_mpc
   using NegativeOrthant = proxsuite::nlp::NegativeOrthantTpl<double>;
   using EqualityConstraint = proxsuite::nlp::EqualityConstraintTpl<double>;
   using FunctionSliceXpr = FunctionSliceXprTpl<double>;
+  using MultibodyPhaseSpace = proxsuite::nlp::MultibodyPhaseSpace<double>;
 
 #define SIMPLE_MPC_DEFINE_DEFAULT_MOVE_CTORS(Type) \
   Type(Type &&) = default;                         \
@@ -86,13 +88,11 @@ namespace simple_mpc
     // Manage terminal cost
     CostStack createTerminalCost();
 
-    // 设置末端位姿参考
-    void setReferenceFootPose(const std::size_t t, const std::string &ee_name, const pinocchio::SE3 &pose_ref);
-    
-    // 设置状态参考
+    void setReferenceFootPose(const std::size_t t, const std::string &ee_name, const Vector3d &pos_ref);
     void setReferenceState(const std::size_t t, const ConstVectorRef &x_ref);
-
     void setTerminalReferenceState(const ConstVectorRef &x_ref);
+    void setReferenceContact(const std::size_t t, const Vector4i &contact);
+    void setReferenceFootForce(const std::size_t t, const std::vector<VectorXd> &force_refs);
 
     const Eigen::VectorXd getReferenceForce(const std::size_t i, const std::string &cost_name);
 
@@ -112,8 +112,8 @@ namespace simple_mpc
     ConstVectorRef getReferenceControl(const std::size_t t);
     CostStack *getCostStack(std::size_t t);
     CostStack *getTerminalCostStack();
-    const pinocchio::SE3 getReferenceFootPose(const std::size_t i, const std::string & cost_name);
-
+    int getConstraintSize(const std::size_t t);
+    const pinocchio::SE3 getReferenceFootPose(const std::size_t i, const std::string &cost_name);
 
     std::size_t getSize() const
     {
@@ -156,6 +156,9 @@ namespace simple_mpc
 
     // Vector reference for control cost
     Eigen::VectorXd control_ref_;
+
+    // Multibody phase space
+    MultibodyPhaseSpace space_;
   };
 
 } // namespace simple_mpc

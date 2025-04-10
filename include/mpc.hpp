@@ -17,6 +17,8 @@
 #include "fwd.hpp"
 #include "kinodynamics.hpp"
 #include "robot-handler.hpp"
+#include "planner/foot_planner.hpp"
+#include "ctrl_component.hpp"
 
 namespace simple_mpc
 {
@@ -70,7 +72,7 @@ namespace simple_mpc
     FootTrajectory foot_trajectories_;
     std::map<std::string, pinocchio::SE3> relative_feet_poses_;
     // INTERNAL UPDATING function
-    void updateStepTrackerReferences();
+    void updateStepTrackerReferences(double current_time);
 
     // Memory preallocations:
     std::vector<unsigned long> controlled_joints_id_;
@@ -103,6 +105,15 @@ namespace simple_mpc
     void recedeWithCycle(double current_time);
 
     void setReferenceState(const std::vector<VectorXd> &x_ref) { x_ref_ = x_ref; }
+
+    void setCtrlComponent(const BodyState &body_state,
+                          const FootState &foot_state,
+                          const FootState &foot_state_ref)
+    {
+      body_state_ = body_state;
+      foot_state_ = foot_state;
+      foot_state_ref_ = foot_state_ref;
+    }
 
     // getters and setters
     TrajOptProblem &getTrajOptProblem();
@@ -147,7 +158,11 @@ namespace simple_mpc
     // Initial quantities
     VectorXd x0_;
     VectorXd u0_;
-    double last_recede_time_ = 0.0;
+
+    GaitSchedule gait_schedule_;
+    FootPlanner foot_planner_;
+    BodyState body_state_;
+    FootState foot_state_, foot_state_ref_;
   };
 
 } // namespace simple_mpc

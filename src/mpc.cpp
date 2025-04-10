@@ -168,10 +168,10 @@ namespace simple_mpc
     data_handler_->updateInternalData(x, false);
 
     // Recede all horizons
-    recedeWithCycle(current_time);
+    // recedeWithCycle(current_time);
 
     // Update the feet and CoM references
-    updateStepTrackerReferences();
+    updateStepTrackerReferences(current_time);
 
     // Recede previous solutions
     x0_ << ocp_handler_->getProblemState(*data_handler_);
@@ -204,22 +204,16 @@ namespace simple_mpc
 
       ocp_handler_->getProblem().replaceStageCircular(*cycle_horizon_[0]);
       solver_->cycleProblem(ocp_handler_->getProblem(), cycle_horizon_data_[0]); // ? 每次都是必须的吗？
-      // std::cout << "current_time - last_recede_time_: " << current_time - last_recede_time_ << std::endl;
-      if (current_time - last_recede_time_ >= settings_.timestep)
+      rotate_vec_left(cycle_horizon_);
+      rotate_vec_left(cycle_horizon_data_);
+      rotate_vec_left(contact_states_);
+      for (auto const &name : ee_names_)
       {
-        std::cout << "!!recedeWithCycle!!" << std::endl;
-        rotate_vec_left(cycle_horizon_);
-        rotate_vec_left(cycle_horizon_data_);
-        rotate_vec_left(contact_states_);
-        for (auto const &name : ee_names_)
-        {
-          if (contact_states_[contact_states_.size() - 1].at(name) and
-              !contact_states_[contact_states_.size() - 2].at(name))
-            foot_land_times_.at(name).push_back((int)(contact_states_.size() + ocp_handler_->getSize()));
-        }
-        updateCycleTiming(false); // ?为什么这里是false
-        last_recede_time_ = current_time;
+        if (contact_states_[contact_states_.size() - 1].at(name) and
+            !contact_states_[contact_states_.size() - 2].at(name))
+          foot_land_times_.at(name).push_back((int)(contact_states_.size() + ocp_handler_->getSize()));
       }
+      updateCycleTiming(false); // ?为什么这里是false
     }
     else
     {
@@ -271,7 +265,7 @@ namespace simple_mpc
     // }
   }
 
-  void MPC::updateStepTrackerReferences()
+  void MPC::updateStepTrackerReferences(double current_time)
   {
     // Set reference state
     for (int i = 0; i < ocp_handler_->getSize(); i++)
@@ -280,40 +274,89 @@ namespace simple_mpc
     }
     ocp_handler_->setTerminalReferenceState(x_ref_[ocp_handler_->getSize() - 1]);
 
-    velocity_base_ = x_ref_[0].segment(getModelHandler().getModel().nq, 6);
-    for (auto const &name : ee_names_)
+    // velocity_base_ = x_ref_[0].segment(getModelHandler().getModel().nq, 6);
+    // for (auto const &name : ee_names_)
+    // {
+    //   int foot_land_time = -1;
+    //   if (!foot_land_times_.at(name).empty())
+    //     foot_land_time = foot_land_times_.at(name)[0];
+    //   // std::cout << "name: " << name << " foot_land_time: " << foot_land_time << std::endl;
+    //   bool update = true;
+    //   // 如果足端即将落地，则不更新
+    //   // ? 何时update?
+    //   if (foot_land_time < settings_.T_fly)
+    //     update = false;
+
+    //   // Use the Raibert heuristics to compute the next foot pose
+    //   twist_vect_[0] = -(data_handler_->getRefFootPose(name).translation()[1] - data_handler_->getBaseFramePose().translation()[1]);
+    //   twist_vect_[1] = data_handler_->getRefFootPose(name).translation()[0] - data_handler_->getBaseFramePose().translation()[0];
+    //   next_pose_.head(2) = data_handler_->getRefFootPose(name).translation().head(2);
+    //   next_pose_.head(2) += (velocity_base_.head(2) + velocity_base_[5] * twist_vect_) * (settings_.T_fly + settings_.T_contact) * settings_.timestep;
+    //   next_pose_[2] = data_handler_->getFootPose(name).translation()[2];
+
+    //   // if (name == ee_names_[0])
+    //   // {
+    //   //   std::cout << "next_pose_: " << next_pose_.transpose() << std::endl;
+    //   //   std::cout << "current_pose_: " << data_handler_->getFootPose(name).translation().transpose() << std::endl;
+    //   // }
+
+    //   foot_trajectories_.updateTrajectory(update, foot_land_time, data_handler_->getFootPose(name).translation(), next_pose_, name);
+    //   pinocchio::SE3 pose_ref = pinocchio::SE3::Identity();
+    //   for (unsigned long time = 0; time < ocp_handler_->getSize(); time++)
+    //   {
+    //     pose_ref.translation() = foot_trajectories_.getReference(name)[time];
+    //     ocp_handler_->setReferenceFootPose(time, name, pose_ref);
+    //   }
+    // }
+
+    pinocchio::SE3 pose_ref = pinocchio::SE3::Identity();
+    VectorXd u_ref(ocp_handler_->getModelHandler().getModel().nv);
+    std::vector<VectorXd> feet_force_ref(ocp_handler_->getModelHandler().getFeetNames().size());
+
+    for (int i = 0; i < ocp_handler_->getSize(); i++)
     {
-      int foot_land_time = -1;
-      if (!foot_land_times_.at(name).empty())
-        foot_land_time = foot_land_times_.at(name)[0];
-      // std::cout << "name: " << name << " foot_land_time: " << foot_land_time << std::endl;
-      bool update = true;
-      // 如果足端即将落地，则不更新
-      // ? 何时update?
-      if (foot_land_time < settings_.T_fly)
-        update = false;
+      gait_schedule_.update(current_time + double(i) * settings_.timestep, GaitName::TROT);
+      foot_planner_.update(gait_schedule_.gait_state(), body_state_, foot_state_, foot_state_ref_);
 
-      // Use the Raibert heuristics to compute the next foot pose
-      twist_vect_[0] = -(data_handler_->getRefFootPose(name).translation()[1] - data_handler_->getBaseFramePose().translation()[1]);
-      twist_vect_[1] = data_handler_->getRefFootPose(name).translation()[0] - data_handler_->getBaseFramePose().translation()[0];
-      next_pose_.head(2) = data_handler_->getRefFootPose(name).translation().head(2);
-      next_pose_.head(2) += (velocity_base_.head(2) + velocity_base_[5] * twist_vect_) * (settings_.T_fly + settings_.T_contact) * settings_.timestep;
-      next_pose_[2] = data_handler_->getFootPose(name).translation()[2];
+      std::vector<bool> origin_contact_ = ocp_handler_->getContactState(i);
 
-      // if (name == ee_names_[0])
-      // {
-      //   std::cout << "next_pose_: " << next_pose_.transpose() << std::endl;
-      //   std::cout << "current_pose_: " << data_handler_->getFootPose(name).translation().transpose() << std::endl;
-      // }
+      std::cout << "origin_contact: ";
+      for (size_t i = 0; i < origin_contact_.size(); ++i) {
+        std::cout << origin_contact_[i] << " ";
+      }
+      std::cout << std::endl;
 
-      foot_trajectories_.updateTrajectory(update, foot_land_time, data_handler_->getFootPose(name).translation(), next_pose_, name);
-      pinocchio::SE3 pose_ref = pinocchio::SE3::Identity();
-      for (unsigned long time = 0; time < ocp_handler_->getSize(); time++)
+      std::cout << "new_contact:    " << gait_schedule_.contact().transpose() << std::endl;
+
+      ocp_handler_->setReferenceContact(i, gait_schedule_.contact());
+
+      ocp_handler_->setReferenceFootPose(i, "FL_foot_link", foot_state_ref_.pos.col(0));
+      ocp_handler_->setReferenceFootPose(i, "FR_foot_link", foot_state_ref_.pos.col(1));
+      ocp_handler_->setReferenceFootPose(i, "HL_foot_link", foot_state_ref_.pos.col(2));
+      ocp_handler_->setReferenceFootPose(i, "HR_foot_link", foot_state_ref_.pos.col(3));
+
+      // Create a map of foot forces based on contact state
+      int num_contact = gait_schedule_.contact().sum();
+      for (size_t j = 0; j < feet_force_ref.size(); j++)
       {
-        pose_ref.translation() = foot_trajectories_.getReference(name)[time];
-        ocp_handler_->setReferenceFootPose(time, name, pose_ref);
+        feet_force_ref[j] = (gait_schedule_.contact()(j) == 1
+                                 ? Vector3d(0, 0, settings_.support_force / num_contact)
+                                 : Vector3d::Zero());
+      }
+
+      std::cout << "feet_force_ref: ";
+      for (size_t i = 0; i < feet_force_ref.size(); ++i) {
+        std::cout << feet_force_ref[i](2) << " ";
+      }
+      std::cout << std::endl;
+
+      if (i == 0)
+      {
+        std::cout << gait_schedule_.contact().transpose() << std::endl;
+        std::cout << ocp_handler_->getConstraintSize(i) << std::endl;
       }
     }
+    // std::cout << std::endl;
   }
 
   TrajOptProblem &MPC::getTrajOptProblem()

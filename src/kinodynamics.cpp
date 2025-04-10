@@ -25,7 +25,8 @@ namespace simple_mpc
   using IntegratorSemiImplEuler = dynamics::IntegratorSemiImplEulerTpl<double>;
 
   KinodynamicsOCP::KinodynamicsOCP(const KinodynamicsSettings &settings, const RobotModelHandler &model_handler)
-      : settings_(settings), model_handler_(model_handler), problem_(nullptr)
+      : settings_(settings), model_handler_(model_handler), problem_(nullptr),
+        space_(model_handler_.getModel()) // 正确初始化 space_ 成员变量
   {
     nq_ = model_handler.getModel().nq;
     nv_ = model_handler.getModel().nv;
@@ -96,7 +97,7 @@ namespace simple_mpc
 
         // 支撑腿速度为 0 约束
         FrameVelocityResidual frame_vel = FrameVelocityResidual(
-            space.ndx(), nu_, model_handler_.getModel(), v_ref, model_handler_.getFootId(name), pinocchio::LOCAL);
+            space.ndx(), nu_, model_handler_.getModel(), pin::Motion::Zero(), model_handler_.getFootId(name), pinocchio::LOCAL);
         std::vector<int> vel_id = {0, 1, 2}; // 只考虑平移速度
         FunctionSliceXpr vel_slice = FunctionSliceXpr(frame_vel, vel_id);
         stm.addConstraint(vel_slice, EqualityConstraint());
@@ -107,12 +108,12 @@ namespace simple_mpc
     return stm;
   }
 
-  void KinodynamicsOCP::setReferenceFootPose(const std::size_t t, const std::string &ee_name, const pinocchio::SE3 &pose_ref)
+  void KinodynamicsOCP::setReferenceFootPose(const std::size_t t, const std::string &ee_name, const Vector3d &pos_ref)
   {
     CostStack *cs = getCostStack(t);
     QuadraticResidualCost *qrc = cs->getComponent<QuadraticResidualCost>(ee_name + "_pose_cost");
     FrameTranslationResidual *cfr = qrc->getResidual<FrameTranslationResidual>();
-    cfr->setReference(pose_ref.translation());
+    cfr->setReference(pos_ref);
   }
 
   void KinodynamicsOCP::setReferenceState(const std::size_t t, const ConstVectorRef &x_ref)
@@ -127,6 +128,53 @@ namespace simple_mpc
     CostStack *cs = getTerminalCostStack();
     QuadraticStateCost *qsc = cs->getComponent<QuadraticStateCost>("term_state_cost");
     qsc->setTarget(x_ref);
+  }
+
+  void KinodynamicsOCP::setReferenceContact(const std::size_t t, const Vector4i &contact)
+  {
+    KinodynamicsFwdDynamics *ode =
+        problem_->stages_[t]->getDynamics<IntegratorSemiImplEuler>()->getDynamics<KinodynamicsFwdDynamics>();
+    std::vector<bool> new_contact_states;
+    for (int i = 0; i < contact.size(); ++i)
+    {
+      new_contact_states.push_back(contact(i) == 1);
+
+      // 如果由支撑腿变成摆动腿，那么需要去掉约束
+      if (ode->contact_states_[i] == true and new_contact_states[i] == false)
+      {
+        std::cout << "remove contact " << i << std::endl;
+        problem_->stages_[t]->constraints_.clear();
+      }
+      // 如果由摆动腿变成支撑腿，那么需要添加约束
+      else if (ode->contact_states_[i] == false and new_contact_states[i] == true)
+      {
+        std::cout << "add contact " << i << std::endl;
+        CentroidalFrictionConeResidual friction_residual =
+            CentroidalFrictionConeResidual(space_.ndx(), nu_, i, settings_.mu, 1e-4);
+        problem_->stages_[t]->addConstraint(friction_residual, NegativeOrthant());
+
+        // 支撑腿速度为 0 约束
+        FrameVelocityResidual frame_vel = FrameVelocityResidual(
+          space_.ndx(), nu_, model_handler_.getModel(), pin::Motion::Zero(), model_handler_.getFeetIds()[i], pinocchio::LOCAL);
+        std::vector<int> vel_id = {0, 1, 2}; // 只考虑平移速度
+        FunctionSliceXpr vel_slice = FunctionSliceXpr(frame_vel, vel_id);
+        problem_->stages_[t]->addConstraint(vel_slice, EqualityConstraint());
+      }
+    }
+
+    ode->contact_states_ = new_contact_states;
+  }
+
+  void KinodynamicsOCP::setReferenceFootForce(const std::size_t t, const std::vector<VectorXd> &force_refs)
+  {
+    for (int i = 0; i < model_handler_.getFeetNames().size(); i++)
+    {
+      control_ref_.segment(i * settings_.force_size, settings_.force_size) = force_refs[i];
+    }
+
+    CostStack *cs = getCostStack(t);
+    QuadraticControlCost *qc = cs->getComponent<QuadraticControlCost>("control_cost");
+    qc->setTarget(control_ref_);
   }
 
   void KinodynamicsOCP::computeControlFromForces(const std::map<std::string, Eigen::VectorXd> &force_refs)
@@ -228,12 +276,16 @@ namespace simple_mpc
       contact_forces.push_back(contact_force);
     }
 
+    auto start_time = std::chrono::high_resolution_clock::now();
     std::vector<xyz::polymorphic<StageModel>> stage_models;
     for (std::size_t i = 0; i < horizon; i++)
     {
       StageModel stage = createStage(contact_phases[i], contact_poses[i], contact_forces[i]);
       stage_models.push_back(std::move(stage));
     }
+    auto end_time = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+    std::cout << "Stage models creation time: " << duration << " ms" << std::endl;
 
     problem_ = std::make_unique<TrajOptProblem>(x0, std::move(stage_models), createTerminalCost());
   }
@@ -269,14 +321,20 @@ namespace simple_mpc
 
     return cs;
   }
-  const pinocchio::SE3 KinodynamicsOCP::getReferenceFootPose(const std::size_t t, const std::string & ee_name)
+  const pinocchio::SE3 KinodynamicsOCP::getReferenceFootPose(const std::size_t t, const std::string &ee_name)
   {
-    CostStack * cs = getCostStack(t);
-    QuadraticResidualCost * qrc = cs->getComponent<QuadraticResidualCost>(ee_name + "_pose_cost");
-    FrameTranslationResidual * cfr = qrc->getResidual<FrameTranslationResidual>();
+    CostStack *cs = getCostStack(t);
+    QuadraticResidualCost *qrc = cs->getComponent<QuadraticResidualCost>(ee_name + "_pose_cost");
+    FrameTranslationResidual *cfr = qrc->getResidual<FrameTranslationResidual>();
     SE3 ref = SE3::Identity();
     ref.translation() = cfr->getReference();
     return ref;
   }
+
+  int KinodynamicsOCP::getConstraintSize(const std::size_t t)
+  {
+    return problem_->stages_[t]->constraints_.size();
+  }
+
 
 } // namespace simple_mpc
