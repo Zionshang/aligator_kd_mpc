@@ -89,7 +89,7 @@ int main(int argc, char const *argv[])
     mpc_settings.support_force = -model_handler.getMass() * gravity(2);
     mpc_settings.TOL = 1e-4;
     mpc_settings.mu_init = 1e-8;
-    mpc_settings.max_iters = 10;
+    mpc_settings.max_iters = 1;
     mpc_settings.num_threads = 8;
     mpc_settings.T_fly = T_fly;
     mpc_settings.T_contact = 0;
@@ -210,7 +210,7 @@ int main(int argc, char const *argv[])
             itr = 0;
             itr_mpc++;
 
-            std::cout << "forces0: " << forces0.transpose() << std::endl;
+            // std::cout << "forces0: " << forces0.transpose() << std::endl;
             // // Print contact states in a single line
             // std::cout << "Contact states: ";
             // for (size_t i = 0; i < contact_states.size(); ++i)
@@ -218,6 +218,8 @@ int main(int argc, char const *argv[])
             //     std::cout << (contact_states[i] ? "1" : "0") << " ";
             // }
             // std::cout << std::endl;
+
+            mpc.testStateInfo();
 
 #ifdef LOGGING
             fl_foot_ref_logger.push_back(kd_problem->getReferenceFootPose(0, "FL_foot_link").translation());

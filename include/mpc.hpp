@@ -141,6 +141,8 @@ namespace simple_mpc
 
     void testCost();
 
+    void testStateInfo();
+    
     // Footstep timings for each end effector
     std::map<std::string, std::vector<int>> foot_land_times_;
 

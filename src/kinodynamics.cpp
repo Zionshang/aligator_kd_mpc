@@ -135,34 +135,58 @@ namespace simple_mpc
     KinodynamicsFwdDynamics *ode =
         problem_->stages_[t]->getDynamics<IntegratorSemiImplEuler>()->getDynamics<KinodynamicsFwdDynamics>();
     std::vector<bool> new_contact_states;
+    bool contact_changed = false;
     for (int i = 0; i < contact.size(); ++i)
     {
       new_contact_states.push_back(contact(i) == 1);
 
-      // 如果由支撑腿变成摆动腿，那么需要去掉约束
-      if (ode->contact_states_[i] == true and new_contact_states[i] == false)
-      {
-        std::cout << "remove contact " << i << std::endl;
-        problem_->stages_[t]->constraints_.clear();
-      }
-      // 如果由摆动腿变成支撑腿，那么需要添加约束
-      else if (ode->contact_states_[i] == false and new_contact_states[i] == true)
-      {
-        std::cout << "add contact " << i << std::endl;
-        CentroidalFrictionConeResidual friction_residual =
-            CentroidalFrictionConeResidual(space_.ndx(), nu_, i, settings_.mu, 1e-4);
-        problem_->stages_[t]->addConstraint(friction_residual, NegativeOrthant());
+      // // 如果由支撑腿变成摆动腿，那么需要去掉约束
+      // if (ode->contact_states_[i] == true and new_contact_states[i] == false)
+      // {
+      //   std::cout << "remove contact " << i << std::endl;
+      //   problem_->stages_[t]->constraints_.clear();
+      // }
+      // // 如果由摆动腿变成支撑腿，那么需要添加约束
+      // else if (ode->contact_states_[i] == false and new_contact_states[i] == true)
+      // {
+      //   std::cout << "add contact " << i << std::endl;
+      //   CentroidalFrictionConeResidual friction_residual =
+      //       CentroidalFrictionConeResidual(space_.ndx(), nu_, i, settings_.mu, 1e-4);
+      //   problem_->stages_[t]->addConstraint(friction_residual, NegativeOrthant());
 
-        // 支撑腿速度为 0 约束
-        FrameVelocityResidual frame_vel = FrameVelocityResidual(
-          space_.ndx(), nu_, model_handler_.getModel(), pin::Motion::Zero(), model_handler_.getFeetIds()[i], pinocchio::LOCAL);
-        std::vector<int> vel_id = {0, 1, 2}; // 只考虑平移速度
-        FunctionSliceXpr vel_slice = FunctionSliceXpr(frame_vel, vel_id);
-        problem_->stages_[t]->addConstraint(vel_slice, EqualityConstraint());
+      //   // 支撑腿速度为 0 约束
+      //   FrameVelocityResidual frame_vel = FrameVelocityResidual(
+      //       space_.ndx(), nu_, model_handler_.getModel(), pin::Motion::Zero(), model_handler_.getFeetIds()[i], pinocchio::LOCAL);
+      //   std::vector<int> vel_id = {0, 1, 2}; // 只考虑平移速度
+      //   FunctionSliceXpr vel_slice = FunctionSliceXpr(frame_vel, vel_id);
+      //   problem_->stages_[t]->addConstraint(vel_slice, EqualityConstraint());
+      // }
+
+      if (ode->contact_states_[i] != new_contact_states[i])
+      {
+        contact_changed = true;
       }
     }
 
-    ode->contact_states_ = new_contact_states;
+    if (contact_changed)
+    {
+      std::cout << "contact changed!" << std::endl;
+
+      // Convert new_contact_states to a map
+      std::map<std::string, bool> new_contact_map;
+      std::map<std::string, pinocchio::SE3> contact_pose;
+      std::map<std::string, Eigen::VectorXd> contact_force;
+      for (size_t i = 0; i < new_contact_states.size(); i++)
+      {
+        new_contact_map.insert({model_handler_.getFootName(i), new_contact_states[i]});
+        contact_pose.insert({model_handler_.getFootName(i), pinocchio::SE3::Identity()});
+        contact_force.insert({model_handler_.getFootName(i), Eigen::VectorXd::Zero(settings_.force_size)});
+      }
+      StageModel stage = createStage(new_contact_map, contact_pose, contact_force);
+      problem_->stages_[t] = std::move(stage);
+    }
+
+    // ode->contact_states_ = new_contact_states;
   }
 
   void KinodynamicsOCP::setReferenceFootForce(const std::size_t t, const std::vector<VectorXd> &force_refs)
@@ -335,6 +359,5 @@ namespace simple_mpc
   {
     return problem_->stages_[t]->constraints_.size();
   }
-
 
 } // namespace simple_mpc

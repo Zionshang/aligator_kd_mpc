@@ -267,12 +267,6 @@ namespace simple_mpc
 
   void MPC::updateStepTrackerReferences(double current_time)
   {
-    // Set reference state
-    for (int i = 0; i < ocp_handler_->getSize(); i++)
-    {
-      ocp_handler_->setReferenceState(i, x_ref_[i]);
-    }
-    ocp_handler_->setTerminalReferenceState(x_ref_[ocp_handler_->getSize() - 1]);
 
     // velocity_base_ = x_ref_[0].segment(getModelHandler().getModel().nq, 6);
     // for (auto const &name : ee_names_)
@@ -321,7 +315,8 @@ namespace simple_mpc
       std::vector<bool> origin_contact_ = ocp_handler_->getContactState(i);
 
       std::cout << "origin_contact: ";
-      for (size_t i = 0; i < origin_contact_.size(); ++i) {
+      for (size_t i = 0; i < origin_contact_.size(); ++i)
+      {
         std::cout << origin_contact_[i] << " ";
       }
       std::cout << std::endl;
@@ -344,11 +339,13 @@ namespace simple_mpc
                                  : Vector3d::Zero());
       }
 
-      std::cout << "feet_force_ref: ";
-      for (size_t i = 0; i < feet_force_ref.size(); ++i) {
-        std::cout << feet_force_ref[i](2) << " ";
-      }
-      std::cout << std::endl;
+      ocp_handler_->setReferenceFootForce(i, feet_force_ref);
+      // std::cout << "feet_force_ref: ";
+      // for (size_t i = 0; i < feet_force_ref.size(); ++i)
+      // {
+      //   std::cout << feet_force_ref[i](2) << " ";
+      // }
+      // std::cout << std::endl;
 
       if (i == 0)
       {
@@ -356,6 +353,13 @@ namespace simple_mpc
         std::cout << ocp_handler_->getConstraintSize(i) << std::endl;
       }
     }
+
+    // Set reference state
+    for (int i = 0; i < ocp_handler_->getSize(); i++)
+    {
+      ocp_handler_->setReferenceState(i, x_ref_[i]);
+    }
+    ocp_handler_->setTerminalReferenceState(x_ref_[ocp_handler_->getSize() - 1]);
     // std::cout << std::endl;
   }
 
@@ -414,6 +418,15 @@ namespace simple_mpc
     std::cout << "Foot cost: " << foot_cost << std::endl;
     std::cout << "Total cost: " << state_cost + control_cost + foot_cost << std::endl;
     std::cout << "Total cost2: " << solver_->workspace_.problem_data.cost_ << std::endl;
+  }
+
+  void MPC::testStateInfo()
+  {
+    std::cout << "reference control: " << std::endl;
+    for (size_t i = 0; i < ocp_handler_->getSize(); i++)
+    {
+      std::cout << ocp_handler_->getReferenceControl(i).transpose() << std::endl;
+    }
   }
 
 } // namespace simple_mpc
