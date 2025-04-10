@@ -63,7 +63,7 @@ int main(int argc, char const *argv[])
         params.w_legacc, params.w_legacc, params.w_legacc, params.w_legacc;
 
     KinodynamicsSettings kd_settings;
-    kd_settings.timestep = 0.04;
+    kd_settings.timestep = 0.02;
     kd_settings.w_x = w_x_vec.asDiagonal();
     kd_settings.w_u = w_u_vec.asDiagonal();
     kd_settings.w_frame = params.w_foot.asDiagonal();
@@ -153,7 +153,7 @@ int main(int argc, char const *argv[])
         // std::cout << "current_time: " << current_time << std::endl;
         if (itr_mpc > mpc_settings.T)
         {
-            double vx = 0.5;
+            double vx = 0;
             vel_ref[0](0) = vx;
         }
 
@@ -196,13 +196,22 @@ int main(int argc, char const *argv[])
             itr = 0;
             itr_mpc++;
 
-            // Print contact states in a single line
-            std::cout << "Contact states: ";
-            for (size_t i = 0; i < contact_states.size(); ++i)
-            {
-                std::cout << (contact_states[i] ? "1" : "0") << " ";
-            }
-            std::cout << std::endl;
+            // // Print contact states in a single line
+            // std::cout << "Contact states: ";
+            // for (size_t i = 0; i < contact_states.size(); ++i)
+            // {
+            //     std::cout << (contact_states[i] ? "1" : "0") << " ";
+            // }
+            // std::cout << std::endl;
+
+            // // Print contact states in a single line
+
+            // for (size_t i = 0; i < kd_problem->getSize(); i++)
+            // {
+            //     std::cout << mpc.ocp_handler_->getContactState(i)[0] << " ";
+            // }
+            // std::cout << std::endl;
+            
 
 #ifdef LOGGING
             // fl_foot_ref_logger.push_back(kd_problem->getReferenceFootPose(0, "FL_foot_link").translation());

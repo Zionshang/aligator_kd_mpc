@@ -201,12 +201,13 @@ namespace simple_mpc
   {
     if (now_ == WALKING or ocp_handler_->getContactSupport(ocp_handler_->getSize() - 1) < ee_names_.size())
     {
-
-      ocp_handler_->getProblem().replaceStageCircular(*cycle_horizon_[0]);
-      solver_->cycleProblem(ocp_handler_->getProblem(), cycle_horizon_data_[0]); // ? 每次都是必须的吗？
-      // std::cout << "current_time - last_recede_time_: " << current_time - last_recede_time_ << std::endl;
-      if (current_time - last_recede_time_ >= settings_.timestep)
+      constexpr double epsilon = 1e-6;
+      // std::cout << "current_time: " << current_time << " last_recede_time_" << last_recede_time_ << " error: " << current_time - last_recede_time_ << std::endl;
+      if (current_time - last_recede_time_ >= settings_.timestep - epsilon)
       {
+        ocp_handler_->getProblem().replaceStageCircular(*cycle_horizon_[0]);
+        solver_->cycleProblem(ocp_handler_->getProblem(), cycle_horizon_data_[0]); // ? 每次都是必须的吗？
+
         std::cout << "!!recedeWithCycle!!" << std::endl;
         rotate_vec_left(cycle_horizon_);
         rotate_vec_left(cycle_horizon_data_);
