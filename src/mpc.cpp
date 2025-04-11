@@ -309,19 +309,26 @@ namespace simple_mpc
 
     for (int i = 0; i < ocp_handler_->getSize(); i++)
     {
-      gait_schedule_.update(current_time + double(i) * settings_.timestep, GaitName::TROT);
+      std::cout << current_time + i * settings_.timestep << " ";
+    }
+
+    std::cout << std::endl;
+
+    for (int i = 0; i < ocp_handler_->getSize(); i++)
+    {
+      gait_schedule_.update(current_time + i * settings_.timestep, GaitName::TROT);
       foot_planner_.update(gait_schedule_.gait_state(), body_state_, foot_state_, foot_state_ref_);
 
       std::vector<bool> origin_contact_ = ocp_handler_->getContactState(i);
 
-      std::cout << "origin_contact: ";
-      for (size_t i = 0; i < origin_contact_.size(); ++i)
-      {
-        std::cout << origin_contact_[i] << " ";
-      }
-      std::cout << std::endl;
+      // std::cout << "origin_contact: ";
+      // for (size_t i = 0; i < origin_contact_.size(); ++i)
+      // {
+      //   std::cout << origin_contact_[i] << " ";
+      // }
+      // std::cout << std::endl;
 
-      std::cout << "new_contact:    " << gait_schedule_.contact().transpose() << std::endl;
+      // std::cout << "new_contact:    " << gait_schedule_.contact().transpose() << std::endl;
 
       ocp_handler_->setReferenceContact(i, gait_schedule_.contact());
 
@@ -347,11 +354,11 @@ namespace simple_mpc
       // }
       // std::cout << std::endl;
 
-      if (i == 0)
-      {
-        std::cout << gait_schedule_.contact().transpose() << std::endl;
-        std::cout << ocp_handler_->getConstraintSize(i) << std::endl;
-      }
+      // if (i == 0)
+      // {
+      //   std::cout << gait_schedule_.contact().transpose() << std::endl;
+      //   std::cout << ocp_handler_->getConstraintSize(i) << std::endl;
+      // }
     }
 
     // Set reference state
@@ -416,16 +423,74 @@ namespace simple_mpc
     std::cout << "State cost: " << state_cost << std::endl;
     std::cout << "Control cost: " << control_cost << std::endl;
     std::cout << "Foot cost: " << foot_cost << std::endl;
-    std::cout << "Total cost: " << state_cost + control_cost + foot_cost << std::endl;
-    std::cout << "Total cost2: " << solver_->workspace_.problem_data.cost_ << std::endl;
+    // std::cout << "Total cost: " << state_cost + control_cost + foot_cost << std::endl;
+    // std::cout << "Total cost2: " << solver_->workspace_.problem_data.cost_ << std::endl;
   }
 
   void MPC::testStateInfo()
   {
-    std::cout << "reference control: " << std::endl;
-    for (size_t i = 0; i < ocp_handler_->getSize(); i++)
+    int size = ocp_handler_->getSize() / 2;
+    // std::cout << "reference control: " << std::endl;
+    // for (size_t i = 0; i < ocp_handler_->getSize(); i++)
+    // {
+    //   std::cout << ocp_handler_->getReferenceControl(i).transpose() << std::endl;
+    // }
+
+    // std::cout << "reference state: " << std::endl;
+    // for (size_t i = 0; i < ocp_handler_->getSize(); i++)
+    // {
+    //   std::cout << ocp_handler_->getReferenceState(i).transpose() << std::endl;
+    // }
+
+    // std::cout << "reference foot pose: " << std::endl;
+    // for (size_t i = 0; i < ocp_handler_->getSize(); i++)
+    // {
+    //   for (auto const &name : ocp_handler_->getModelHandler().getFeetNames())
+    //   {
+    //     std::cout << "  name: " << name << " " << ocp_handler_->getReferenceFootPose(i, name).translation().transpose();
+    //   }
+    //   std::cout << std::endl;
+    // }
+
+    std::cout << "reference contact: " << std::endl;
+    for (size_t i = 0; i < size; i++)
     {
-      std::cout << ocp_handler_->getReferenceControl(i).transpose() << std::endl;
+      const auto &contact_state = ocp_handler_->getContactState(i);
+      for (int j = 0; j < contact_state.size(); j++)
+      {
+        std::cout << contact_state[j] << " ";
+      }
+      std::cout << std::endl;
+
+      // std::cout << us_[i].head(12).transpose() << std::endl;
+    }
+
+    std::cout << "result foot force: " << std::endl;
+    for (size_t i = 0; i < size; i++)
+    {
+      std::cout << us_[i].transpose() << std::endl;
+    }
+
+    std::cout << "result foot pose: " << std::endl;
+    for (size_t i = 0; i < size / 2; i++)
+    {
+      const auto &model = ocp_handler_->getModelHandler().getModel();
+      auto &data = getDataHandler().getData();
+      pinocchio::forwardKinematics(model, data, xs_[i + 1].head(model.nq));
+      pinocchio::updateFramePlacements(model, data);
+
+      std::cout << "reference foot: ";
+      for (auto const &name : ocp_handler_->getModelHandler().getFeetNames())
+      {
+        std::cout << " " << ocp_handler_->getReferenceFootPose(i, name).translation().transpose();
+      }
+      std::cout << std::endl;
+      std::cout << "result    foot: ";
+      for (auto const &name : ocp_handler_->getModelHandler().getFeetNames())
+      {
+        std::cout << " " << data.oMf[ocp_handler_->getModelHandler().getFootId(name)].translation().transpose();
+      }
+      std::cout << std::endl;
     }
   }
 

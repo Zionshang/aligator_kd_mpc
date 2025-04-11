@@ -110,6 +110,7 @@ namespace simple_mpc
 
     void setReferenceControl(const std::size_t t, const ConstVectorRef &u_ref);
     ConstVectorRef getReferenceControl(const std::size_t t);
+    ConstVectorRef getReferenceState(const std::size_t t);
     CostStack *getCostStack(std::size_t t);
     CostStack *getTerminalCostStack();
     int getConstraintSize(const std::size_t t);

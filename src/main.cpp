@@ -76,7 +76,7 @@ int main(int argc, char const *argv[])
     kd_settings.kinematics_limits = false;
     kd_settings.force_cone = true;
 
-    int T = 50;
+    int T = 20;
     auto kd_problem = std::make_shared<KinodynamicsOCP>(kd_settings, model_handler);
     kd_problem->createProblem(model_handler.getReferenceState(), T, force_size, gravity(2));
 
@@ -220,6 +220,7 @@ int main(int argc, char const *argv[])
             // std::cout << std::endl;
 
             mpc.testStateInfo();
+            mpc.testCost();
 
 #ifdef LOGGING
             fl_foot_ref_logger.push_back(kd_problem->getReferenceFootPose(0, "FL_foot_link").translation());
@@ -264,9 +265,7 @@ int main(int argc, char const *argv[])
     }
 #else
     VectorXd x_measure = model_handler.getReferenceState();
-    int itr = 0;
-    std::vector<bool> contact_states;
-    std::vector<VectorXd> x_logger, rf_foot_ref_logger, rf_foot_logger;
+    std::vector<VectorXd> x_logger, fl_foot_ref_logger, fl_foot_logger, rr_foot_ref_logger, rr_foot_logger;
 
     std::vector<VectorXd> pos_ref(mpc_settings.T, x_measure.head(nq));
     std::vector<VectorXd> vel_ref(mpc_settings.T, x_measure.tail(nv));
@@ -274,35 +273,44 @@ int main(int argc, char const *argv[])
     VectorXd pos_ref_start = x_measure.head(nq);
     double vx = 0;
     vel_ref[0](0) = vx;
-
-    while (itr < 1000)
+    double dt = 0.001, current_time = 0;
+    while (current_time < 0.2)
     {
-        pin::integrate(model, pos_ref_start, vel_ref[0] * 0.001, pos_ref[0]);
+        // 设置参考轨迹
+        pin::integrate(model, pos_ref_start, vel_ref[0] * dt, pos_ref[0]);
         pos_ref_start = pos_ref[0];
 
-        x_ref[0].head(nq) = pos_ref[0];
-        x_ref[0].tail(nv) = vel_ref[0];
+        x_ref[0].head(6) = x_measure.head(6);
+        x_ref[0].segment(nq, 6) = x_measure.segment(nq, 6);
+
         for (int i = 1; i < mpc_settings.T; i++)
         {
             vel_ref[i] = vel_ref[i - 1];
-            pin::integrate(model, pos_ref[i - 1], vel_ref[i - 1] * 0.001, pos_ref[i]);
+            pin::integrate(model, pos_ref[i - 1], vel_ref[i - 1] * kd_settings.timestep, pos_ref[i]);
             x_ref[i].head(nq) = pos_ref[i];
             x_ref[i].tail(nv) = vel_ref[i];
         }
 
         mpc.setReferenceState(x_ref);
-        mpc.iterate(x_measure);
+        mpc.iterate(x_measure, current_time);
 
         x_measure = mpc.xs_[1];
 
         x_logger.push_back(x_measure);
-        rf_foot_ref_logger.push_back(kd_problem->getReferenceFootPose(0, "FR_foot_link").translation());
+        fl_foot_ref_logger.push_back(kd_problem->getReferenceFootPose(0, "FL_foot_link").translation());
+        rr_foot_ref_logger.push_back(kd_problem->getReferenceFootPose(0, "HR_foot_link").translation());
         pinocchio::forwardKinematics(model_handler.getModel(), mpc.getDataHandler().getData(), x_measure.head(model_handler.getModel().nq));
         pinocchio::updateFramePlacements(model_handler.getModel(), mpc.getDataHandler().getData());
-        rf_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("FR_foot_link")].translation());
+        fl_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("FL_foot_link")].translation());
+        rr_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("HR_foot_link")].translation());
 
-        itr++;
-        std::cout << "itr = " << itr << std::endl;
+        current_time += kd_settings.timestep;
+        std::cout << "current_time = " << current_time << std::endl;
+
+        mpc.testCost();
+        mpc.testStateInfo();
+
+        std::cout << "-----------------------------------------" << std::endl;
     }
 #endif
     saveVectorsToCsv("x.csv", x_logger);

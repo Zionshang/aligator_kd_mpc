@@ -10,22 +10,24 @@ GaitSchedule::GaitSchedule()
 
 void GaitSchedule::update(double currentT, GaitName target_gait_name)
 {
-    if (switch_to_stance_)
-    {
-        if (currentT - time_switch_to_stance_ >= 0.5)
-        {
-            switch_to_stance_ = false;
-            current_gait_name_ = target_gait_name;
-            time_gait_start_ = currentT;
-        }
-    }
-    else if (target_gait_name != current_gait_name_)
-    {
-        switch_to_stance_ = true;
-        time_switch_to_stance_ = currentT;
-        current_gait_name_ = GaitName::STANCE;
-    }
+    // if (switch_to_stance_)
+    // {
+    //     if (currentT - time_switch_to_stance_ >= 0.5)
+    //     {
+    //         switch_to_stance_ = false;
+    //         current_gait_name_ = target_gait_name;
+    //         time_gait_start_ = currentT;
+    //     }
+    // }
+    // else if (target_gait_name != current_gait_name_)
+    // {
+    //     switch_to_stance_ = true;
+    //     time_switch_to_stance_ = currentT;
+    //     current_gait_name_ = GaitName::STANCE;
+    // }
 
+    current_gait_name_ = target_gait_name;
+    
     const auto &current_gait = gait_list_.getGait(current_gait_name_);
     period_ = current_gait.period;
     stance_ratio_ = current_gait.stance_ratio;

@@ -170,7 +170,12 @@ namespace simple_mpc
 
     if (contact_changed)
     {
-      std::cout << "contact changed!" << std::endl;
+      for (size_t i = 0; i < new_contact_states.size(); i++)
+      {
+          std::cout << "  Contact " << model_handler_.getFootName(i)
+                    << " changed from " << (ode->contact_states_[i] ? "true" : "false")
+                    << " to " << (new_contact_states[i] ? "true" : "false") << std::endl;
+      }
 
       // Convert new_contact_states to a map
       std::map<std::string, bool> new_contact_map;
@@ -326,6 +331,13 @@ namespace simple_mpc
     CostStack *cs = getCostStack(t);
     QuadraticControlCost *qc = cs->getComponent<QuadraticControlCost>("control_cost");
     return qc->getTarget();
+  }
+
+  ConstVectorRef KinodynamicsOCP::getReferenceState(const std::size_t t)
+  {
+    CostStack *cs = getCostStack(t);
+    QuadraticStateCost *qsc = cs->getComponent<QuadraticStateCost>("state_cost");
+    return qsc->getTarget();
   }
 
   CostStack *KinodynamicsOCP::getCostStack(std::size_t t)
