@@ -314,184 +314,210 @@ namespace simple_mpc
 
     std::cout << std::endl;
 
-    for (int i = 0; i < ocp_handler_->getSize(); i++)
+    gait_schedule_.update(current_time, GaitName::TROT);
+    foot_planner_.update(gait_schedule_.gait_state(), body_state_, foot_state_, foot_state_ref_);
+
+    std::map<std::string, bool> contact_state;
+    std::map<std::string, pinocchio::SE3> contact_pose;
+    std::map<std::string, Eigen::VectorXd> contact_force;
+
+    pinocchio::SE3 pos_foot_ref = pinocchio::SE3::Identity();
+    Vector3d force_foot_ref;
+    int num_contact = gait_schedule_.contact().sum();
+    for (size_t i = 0; i < 4; i++)
     {
-      gait_schedule_.update(current_time + i * settings_.timestep, GaitName::TROT);
-      foot_planner_.update(gait_schedule_.gait_state(), body_state_, foot_state_, foot_state_ref_);
-
-      std::vector<bool> origin_contact_ = ocp_handler_->getContactState(i);
-
-      // std::cout << "origin_contact: ";
-      // for (size_t i = 0; i < origin_contact_.size(); ++i)
-      // {
-      //   std::cout << origin_contact_[i] << " ";
-      // }
-      // std::cout << std::endl;
-
-      // std::cout << "new_contact:    " << gait_schedule_.contact().transpose() << std::endl;
-
-      ocp_handler_->setReferenceContact(i, gait_schedule_.contact());
-
-      ocp_handler_->setReferenceFootPose(i, "FL_foot_link", foot_state_ref_.pos.col(0));
-      ocp_handler_->setReferenceFootPose(i, "FR_foot_link", foot_state_ref_.pos.col(1));
-      ocp_handler_->setReferenceFootPose(i, "HL_foot_link", foot_state_ref_.pos.col(2));
-      ocp_handler_->setReferenceFootPose(i, "HR_foot_link", foot_state_ref_.pos.col(3));
-
-      // Create a map of foot forces based on contact state
-      int num_contact = gait_schedule_.contact().sum();
-      for (size_t j = 0; j < feet_force_ref.size(); j++)
-      {
-        feet_force_ref[j] = (gait_schedule_.contact()(j) == 1
-                                 ? Vector3d(0, 0, settings_.support_force / num_contact)
-                                 : Vector3d::Zero());
-      }
-
-      ocp_handler_->setReferenceFootForce(i, feet_force_ref);
-      // std::cout << "feet_force_ref: ";
-      // for (size_t i = 0; i < feet_force_ref.size(); ++i)
-      // {
-      //   std::cout << feet_force_ref[i](2) << " ";
-      // }
-      // std::cout << std::endl;
-
-      // if (i == 0)
-      // {
-      //   std::cout << gait_schedule_.contact().transpose() << std::endl;
-      //   std::cout << ocp_handler_->getConstraintSize(i) << std::endl;
-      // }
+      const auto &feet_name = ocp_handler_->getModelHandler().getFeetNames();
+      pos_foot_ref.translation() = foot_state_ref_.pos.col(i);
+      force_foot_ref = (gait_schedule_.contact()(i) == 1
+                            ? Vector3d(0, 0, settings_.support_force / num_contact)
+                            : Vector3d::Zero());
+      contact_state.insert({feet_name[i], gait_schedule_.contact()(i)});
+      contact_pose.insert({feet_name[i], pos_foot_ref});
+      contact_force.insert({feet_name[i], force_foot_ref});
     }
 
-    // Set reference state
-    for (int i = 0; i < ocp_handler_->getSize(); i++)
-    {
-      ocp_handler_->setReferenceState(i, x_ref_[i]);
-    }
-    ocp_handler_->setTerminalReferenceState(x_ref_[ocp_handler_->getSize() - 1]);
-    // std::cout << std::endl;
-  }
+    StageModel sm = ocp_handler_->createStage(contact_state, contact_pose, contact_force);
+    ocp_handler_->getProblem().replaceStageCircular(sm);
+    solver_->cycleProblem(ocp_handler_->getProblem(), sm.createData()); // ? 每次都是必须的吗？
 
-  TrajOptProblem &MPC::getTrajOptProblem()
-  {
-    return ocp_handler_->getProblem();
-  }
-
-  void MPC::switchToWalk(const Vector6d &velocity_base)
-  {
-    now_ = WALKING;
-    velocity_base_ = velocity_base;
-  }
-
-  void MPC::switchToStand()
-  {
-    now_ = STANDING;
-    velocity_base_.setZero();
-  }
-
-  void MPC::testCost()
-  {
-    double state_cost = 0, control_cost = 0, foot_cost = 0;
-    for (size_t i = 0; i < ocp_handler_->getSize(); i++)
-    {
-      CostStack *cs = ocp_handler_->getCostStack(i);
-      QuadraticStateCost *qsc = cs->getComponent<QuadraticStateCost>("state_cost");
-      auto data_qsc = qsc->createData();
-      qsc->evaluate(xs_[i + 1], us_[i], *data_qsc);
-      state_cost += data_qsc->value_;
-
-      QuadraticControlCost *qcc = cs->getComponent<QuadraticControlCost>("control_cost");
-      auto data_qcc = qcc->createData();
-      qcc->evaluate(xs_[i + 1], us_[i], *data_qcc);
-      control_cost += data_qcc->value_;
-
-      for (auto const &name : ocp_handler_->getModelHandler().getFeetNames())
-      {
-        QuadraticResidualCost *qrc = cs->getComponent<QuadraticResidualCost>(name + "_pose_cost");
-        auto data_qrc = qrc->createData();
-        qrc->evaluate(xs_[i + 1], us_[i], *data_qrc);
-        foot_cost += data_qrc->value_;
-
-        // FrameTranslationResidual *cfr = qrc->getResidual<FrameTranslationResidual>();
-        // auto data_cfr = cfr->createData();
-        // cfr->evaluate(xs_[i + 1], *data_cfr);
-        // if (name == ocp_handler_->getModelHandler().getFeetNames()[0])
-        // {
-        //   std::cout << data_cfr->value_.transpose() << std::endl;
-        // }
-      }
-    }
-
-    std::cout << "State cost: " << state_cost << std::endl;
-    std::cout << "Control cost: " << control_cost << std::endl;
-    std::cout << "Foot cost: " << foot_cost << std::endl;
-    // std::cout << "Total cost: " << state_cost + control_cost + foot_cost << std::endl;
-    // std::cout << "Total cost2: " << solver_->workspace_.problem_data.cost_ << std::endl;
-  }
-
-  void MPC::testStateInfo()
-  {
-    int size = ocp_handler_->getSize() / 2;
-    // std::cout << "reference control: " << std::endl;
-    // for (size_t i = 0; i < ocp_handler_->getSize(); i++)
+    // for (int i = 0; i < ocp_handler_->getSize(); i++)
     // {
-    //   std::cout << ocp_handler_->getReferenceControl(i).transpose() << std::endl;
-    // }
+    //   gait_schedule_.update(current_time + i * settings_.timestep, GaitName::TROT);
+    //   foot_planner_.update(gait_schedule_.gait_state(), body_state_, foot_state_, foot_state_ref_);
 
-    // std::cout << "reference state: " << std::endl;
-    // for (size_t i = 0; i < ocp_handler_->getSize(); i++)
-    // {
-    //   std::cout << ocp_handler_->getReferenceState(i).transpose() << std::endl;
-    // }
+    //   std::vector<bool> origin_contact_ = ocp_handler_->getContactState(i);
 
-    // std::cout << "reference foot pose: " << std::endl;
-    // for (size_t i = 0; i < ocp_handler_->getSize(); i++)
-    // {
-    //   for (auto const &name : ocp_handler_->getModelHandler().getFeetNames())
+    //   // std::cout << "origin_contact: ";
+    //   // for (size_t i = 0; i < origin_contact_.size(); ++i)
+    //   // {
+    //   //   std::cout << origin_contact_[i] << " ";
+    //   // }
+    //   // std::cout << std::endl;
+
+    //   // std::cout << "new_contact:    " << gait_schedule_.contact().transpose() << std::endl;
+
+    //   ocp_handler_->setReferenceContact(i, gait_schedule_.contact());
+
+    //   ocp_handler_->setReferenceFootPose(i, "FL_foot_link", foot_state_ref_.pos.col(0));
+    //   ocp_handler_->setReferenceFootPose(i, "FR_foot_link", foot_state_ref_.pos.col(1));
+    //   ocp_handler_->setReferenceFootPose(i, "HL_foot_link", foot_state_ref_.pos.col(2));
+    //   ocp_handler_->setReferenceFootPose(i, "HR_foot_link", foot_state_ref_.pos.col(3));
+
+    //   // Create a map of foot forces based on contact state
+    //   int num_contact = gait_schedule_.contact().sum();
+    //   for (size_t j = 0; j < feet_force_ref.size(); j++)
     //   {
-    //     std::cout << "  name: " << name << " " << ocp_handler_->getReferenceFootPose(i, name).translation().transpose();
+    //     feet_force_ref[j] = (gait_schedule_.contact()(j) == 1
+    //                              ? Vector3d(0, 0, settings_.support_force / num_contact)
+    //                              : Vector3d::Zero());
     //   }
-    //   std::cout << std::endl;
-    // }
 
-    std::cout << "reference contact: " << std::endl;
-    for (size_t i = 0; i < size; i++)
+    //   ocp_handler_->setReferenceFootForce(i, feet_force_ref);
+    //   // std::cout << "feet_force_ref: ";
+    //   // for (size_t i = 0; i < feet_force_ref.size(); ++i)
+    //   // {
+    //   //   std::cout << feet_force_ref[i](2) << " ";
+    //   // }
+    //   // std::cout << std::endl;
+
+    //   // if (i == 0)
+    //   // {
+    //   //   std::cout << gait_schedule_.contact().transpose() << std::endl;
+    //   //   std::cout << ocp_handler_->getConstraintSize(i) << std::endl;
+    //   // }
+  // }
+
+  // Set reference state
+  for (int i = 0; i < ocp_handler_->getSize(); i++)
+  {
+    ocp_handler_->setReferenceState(i, x_ref_[i]);
+  }
+  ocp_handler_->setTerminalReferenceState(x_ref_[ocp_handler_->getSize() - 1]);
+  // std::cout << std::endl;
+}
+
+TrajOptProblem &MPC::getTrajOptProblem()
+{
+  return ocp_handler_->getProblem();
+}
+
+void MPC::switchToWalk(const Vector6d &velocity_base)
+{
+  now_ = WALKING;
+  velocity_base_ = velocity_base;
+}
+
+void MPC::switchToStand()
+{
+  now_ = STANDING;
+  velocity_base_.setZero();
+}
+
+void MPC::testCost()
+{
+  double state_cost = 0, control_cost = 0, foot_cost = 0;
+  for (size_t i = 0; i < ocp_handler_->getSize(); i++)
+  {
+    CostStack *cs = ocp_handler_->getCostStack(i);
+    QuadraticStateCost *qsc = cs->getComponent<QuadraticStateCost>("state_cost");
+    auto data_qsc = qsc->createData();
+    qsc->evaluate(xs_[i + 1], us_[i], *data_qsc);
+    state_cost += data_qsc->value_;
+
+    QuadraticControlCost *qcc = cs->getComponent<QuadraticControlCost>("control_cost");
+    auto data_qcc = qcc->createData();
+    qcc->evaluate(xs_[i + 1], us_[i], *data_qcc);
+    control_cost += data_qcc->value_;
+
+    for (auto const &name : ocp_handler_->getModelHandler().getFeetNames())
     {
-      const auto &contact_state = ocp_handler_->getContactState(i);
-      for (int j = 0; j < contact_state.size(); j++)
-      {
-        std::cout << contact_state[j] << " ";
-      }
-      std::cout << std::endl;
+      QuadraticResidualCost *qrc = cs->getComponent<QuadraticResidualCost>(name + "_pose_cost");
+      auto data_qrc = qrc->createData();
+      qrc->evaluate(xs_[i + 1], us_[i], *data_qrc);
+      foot_cost += data_qrc->value_;
 
-      // std::cout << us_[i].head(12).transpose() << std::endl;
-    }
-
-    std::cout << "result foot force: " << std::endl;
-    for (size_t i = 0; i < size; i++)
-    {
-      std::cout << us_[i].transpose() << std::endl;
-    }
-
-    std::cout << "result foot pose: " << std::endl;
-    for (size_t i = 0; i < size / 2; i++)
-    {
-      const auto &model = ocp_handler_->getModelHandler().getModel();
-      auto &data = getDataHandler().getData();
-      pinocchio::forwardKinematics(model, data, xs_[i + 1].head(model.nq));
-      pinocchio::updateFramePlacements(model, data);
-
-      std::cout << "reference foot: ";
-      for (auto const &name : ocp_handler_->getModelHandler().getFeetNames())
-      {
-        std::cout << " " << ocp_handler_->getReferenceFootPose(i, name).translation().transpose();
-      }
-      std::cout << std::endl;
-      std::cout << "result    foot: ";
-      for (auto const &name : ocp_handler_->getModelHandler().getFeetNames())
-      {
-        std::cout << " " << data.oMf[ocp_handler_->getModelHandler().getFootId(name)].translation().transpose();
-      }
-      std::cout << std::endl;
+      // FrameTranslationResidual *cfr = qrc->getResidual<FrameTranslationResidual>();
+      // auto data_cfr = cfr->createData();
+      // cfr->evaluate(xs_[i + 1], *data_cfr);
+      // if (name == ocp_handler_->getModelHandler().getFeetNames()[0])
+      // {
+      //   std::cout << data_cfr->value_.transpose() << std::endl;
+      // }
     }
   }
+
+  std::cout << "State cost: " << state_cost << std::endl;
+  std::cout << "Control cost: " << control_cost << std::endl;
+  std::cout << "Foot cost: " << foot_cost << std::endl;
+  // std::cout << "Total cost: " << state_cost + control_cost + foot_cost << std::endl;
+  // std::cout << "Total cost2: " << solver_->workspace_.problem_data.cost_ << std::endl;
+}
+
+void MPC::testStateInfo()
+{
+  int size = ocp_handler_->getSize() / 2;
+  // std::cout << "reference control: " << std::endl;
+  // for (size_t i = 0; i < ocp_handler_->getSize(); i++)
+  // {
+  //   std::cout << ocp_handler_->getReferenceControl(i).transpose() << std::endl;
+  // }
+
+  // std::cout << "reference state: " << std::endl;
+  // for (size_t i = 0; i < ocp_handler_->getSize(); i++)
+  // {
+  //   std::cout << ocp_handler_->getReferenceState(i).transpose() << std::endl;
+  // }
+
+  // std::cout << "reference foot pose: " << std::endl;
+  // for (size_t i = 0; i < ocp_handler_->getSize(); i++)
+  // {
+  //   for (auto const &name : ocp_handler_->getModelHandler().getFeetNames())
+  //   {
+  //     std::cout << "  name: " << name << " " << ocp_handler_->getReferenceFootPose(i, name).translation().transpose();
+  //   }
+  //   std::cout << std::endl;
+  // }
+
+  std::cout << "reference contact: " << std::endl;
+  for (size_t i = 0; i < size; i++)
+  {
+    const auto &contact_state = ocp_handler_->getContactState(i);
+    for (int j = 0; j < contact_state.size(); j++)
+    {
+      std::cout << contact_state[j] << " ";
+    }
+    std::cout << std::endl;
+
+    // std::cout << us_[i].head(12).transpose() << std::endl;
+  }
+
+  std::cout << "result foot force: " << std::endl;
+  for (size_t i = 0; i < size; i++)
+  {
+    std::cout << us_[i].transpose() << std::endl;
+  }
+
+  std::cout << "result foot pose: " << std::endl;
+  for (size_t i = 0; i < size / 2; i++)
+  {
+    const auto &model = ocp_handler_->getModelHandler().getModel();
+    auto &data = getDataHandler().getData();
+    pinocchio::forwardKinematics(model, data, xs_[i + 1].head(model.nq));
+    pinocchio::updateFramePlacements(model, data);
+
+    std::cout << "reference foot: ";
+    for (auto const &name : ocp_handler_->getModelHandler().getFeetNames())
+    {
+      std::cout << " " << ocp_handler_->getReferenceFootPose(i, name).translation().transpose();
+    }
+    std::cout << std::endl;
+    std::cout << "result    foot: ";
+    for (auto const &name : ocp_handler_->getModelHandler().getFeetNames())
+    {
+      std::cout << " " << data.oMf[ocp_handler_->getModelHandler().getFootId(name)].translation().transpose();
+    }
+    std::cout << std::endl;
+  }
+}
 
 } // namespace simple_mpc
