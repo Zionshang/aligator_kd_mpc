@@ -44,7 +44,7 @@ namespace simple_mpc
    * contact forces and joint acceleration.
    */
 
-  struct KinodynamicsSettings
+  struct OcpSettings
   {
     /// timestep in problem shooting nodes
     double timestep;
@@ -65,7 +65,6 @@ namespace simple_mpc
 
     // Constraint
     bool kinematics_limits;
-    bool force_cone;
   };
 
   class OCP
@@ -74,7 +73,7 @@ namespace simple_mpc
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
     // Constructor
-    explicit OCP(const KinodynamicsSettings &settings, const RobotModelHandler &model_handler);
+    explicit OCP(const OcpSettings &settings, const RobotModelHandler &model_handler);
 
     SIMPLE_MPC_DEFINE_DEFAULT_MOVE_CTORS(OCP);
 
@@ -138,7 +137,7 @@ namespace simple_mpc
     }
 
   protected:
-    KinodynamicsSettings settings_;
+    OcpSettings settings_;
     Eigen::VectorXd x0_;
 
     // Size of the problem

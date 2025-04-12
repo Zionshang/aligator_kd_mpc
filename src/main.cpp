@@ -1,7 +1,7 @@
 #include "mpc/mpc.hpp"
 #include <pinocchio/parsers/urdf.hpp>
 #include <pinocchio/parsers/srdf.hpp>
-#include "mpc/kinodynamics.hpp"
+#include "mpc/ocp.hpp"
 #include "webots_interface.hpp"
 #include "utils/logger.hpp"
 #include <pinocchio/algorithm/kinematics.hpp>
@@ -62,25 +62,24 @@ int main(int argc, char const *argv[])
     w_u_vec << params.w_force, params.w_force, params.w_force, params.w_force,
         params.w_legacc, params.w_legacc, params.w_legacc, params.w_legacc;
 
-    KinodynamicsSettings kd_settings;
-    kd_settings.timestep = params.timestep;
-    kd_settings.w_x = w_x_vec.asDiagonal();
-    kd_settings.w_u = w_u_vec.asDiagonal();
-    kd_settings.w_frame = params.w_foot.asDiagonal();
-    kd_settings.qmin = model_handler.getModel().lowerPositionLimit.tail(12);
-    kd_settings.qmax = model_handler.getModel().upperPositionLimit.tail(12);
-    kd_settings.gravity = gravity;
-    kd_settings.mu = params.friction;
-    kd_settings.force_size = force_size;
-    kd_settings.kinematics_limits = true;
-    kd_settings.force_cone = true;
+    OcpSettings ocp_settings;
+    ocp_settings.timestep = params.timestep;
+    ocp_settings.w_x = w_x_vec.asDiagonal();
+    ocp_settings.w_u = w_u_vec.asDiagonal();
+    ocp_settings.w_frame = params.w_foot.asDiagonal();
+    ocp_settings.qmin = model_handler.getModel().lowerPositionLimit.tail(12);
+    ocp_settings.qmax = model_handler.getModel().upperPositionLimit.tail(12);
+    ocp_settings.gravity = gravity;
+    ocp_settings.mu = params.friction;
+    ocp_settings.force_size = force_size;
+    ocp_settings.kinematics_limits = true;
 
     int T = params.horizon;
-    auto kd_problem = std::make_shared<OCP>(kd_settings, model_handler);
+    auto kd_problem = std::make_shared<OCP>(ocp_settings, model_handler);
     kd_problem->createProblem(model_handler.getReferenceState(), T, force_size, gravity(2));
 
     double time_fly = 0.6;
-    int T_fly = time_fly / kd_settings.timestep;
+    int T_fly = time_fly / ocp_settings.timestep;
 
     std::cout << "T_fly: " << T_fly << std::endl;
 
@@ -93,7 +92,7 @@ int main(int argc, char const *argv[])
     mpc_settings.num_threads = 1;
     mpc_settings.T_fly = T_fly;
     mpc_settings.T_contact = 0;
-    mpc_settings.timestep = kd_settings.timestep;
+    mpc_settings.timestep = ocp_settings.timestep;
     mpc_settings.T = T;
     MPC mpc(mpc_settings, kd_problem);
 
@@ -119,8 +118,8 @@ int main(int argc, char const *argv[])
     ////////////////////// 定义松弛WBC //////////////////////
     RelaxedWbcSettings Rwbc_settings;
     Rwbc_settings.contact_ids = model_handler.getFeetIds();
-    Rwbc_settings.mu = kd_settings.mu;
-    Rwbc_settings.force_size = kd_settings.force_size;
+    Rwbc_settings.mu = ocp_settings.mu;
+    Rwbc_settings.force_size = ocp_settings.force_size;
     Rwbc_settings.w_acc = 1;
     Rwbc_settings.w_force = 10;
     Rwbc_settings.verbose = false;
@@ -167,7 +166,7 @@ int main(int argc, char const *argv[])
         for (int i = 1; i < mpc_settings.T; i++)
         {
             vel_ref[i] = vel_ref[i - 1];
-            pin::integrate(model, pos_ref[i - 1], vel_ref[i - 1] * kd_settings.timestep, pos_ref[i]);
+            pin::integrate(model, pos_ref[i - 1], vel_ref[i - 1] * ocp_settings.timestep, pos_ref[i]);
             x_ref[i].head(nq) = pos_ref[i];
             x_ref[i].tail(nv) = vel_ref[i];
         }
@@ -239,8 +238,8 @@ int main(int argc, char const *argv[])
         double delay = itr * dt;
 
         VectorXd acc_interp, u_interp;
-        interpolator.interpolateLinear(delay, kd_settings.timestep, mpc.as_, acc_interp);
-        interpolator.interpolateLinear(delay, kd_settings.timestep, mpc.us_, u_interp);
+        interpolator.interpolateLinear(delay, ocp_settings.timestep, mpc.as_, acc_interp);
+        interpolator.interpolateLinear(delay, ocp_settings.timestep, mpc.us_, u_interp);
 
         ////////////////////// 松弛WBC //////////////////////
         relaxed_wbc.solveQP(contact_states,

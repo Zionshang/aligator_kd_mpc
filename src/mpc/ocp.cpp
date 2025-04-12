@@ -1,4 +1,4 @@
-#include "mpc/kinodynamics.hpp"
+#include "mpc/ocp.hpp"
 
 #include <aligator/modelling/centroidal/centroidal-friction-cone.hpp>
 #include <aligator/modelling/centroidal/centroidal-wrench-cone.hpp>
@@ -24,7 +24,7 @@ namespace simple_mpc
   using CenterOfMassTranslationResidual = CenterOfMassTranslationResidualTpl<double>;
   using IntegratorSemiImplEuler = dynamics::IntegratorSemiImplEulerTpl<double>;
 
-  OCP::OCP(const KinodynamicsSettings &settings, const RobotModelHandler &model_handler)
+  OCP::OCP(const OcpSettings &settings, const RobotModelHandler &model_handler)
       : settings_(settings), model_handler_(model_handler), problem_(nullptr)
   {
     nq_ = model_handler.getModel().nq;
@@ -87,12 +87,9 @@ namespace simple_mpc
       if (contact_phase.at(name))
       {
         // 摩擦力约束
-        if (settings_.force_cone)
-        {
           CentroidalFrictionConeResidual friction_residual =
               CentroidalFrictionConeResidual(space.ndx(), nu_, i, settings_.mu, 1e-4);
           stm.addConstraint(friction_residual, NegativeOrthant());
-        }
 
         // 支撑腿速度为 0 约束
         FrameVelocityResidual frame_vel = FrameVelocityResidual(

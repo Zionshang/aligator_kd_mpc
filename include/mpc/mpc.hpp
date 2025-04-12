@@ -15,7 +15,7 @@
 
 #include "planner/foot-trajectory.hpp"
 #include "fwd.hpp"
-#include "kinodynamics.hpp"
+#include "ocp.hpp"
 #include "robot-handler.hpp"
 
 namespace simple_mpc
