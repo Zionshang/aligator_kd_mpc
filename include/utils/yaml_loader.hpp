@@ -11,6 +11,7 @@
  */
 struct YamlParams
 {
+    // OCP settings
     Eigen::VectorXd w_basepos;
     Eigen::VectorXd w_basevel;
     Eigen::VectorXd w_legpos;
@@ -19,12 +20,21 @@ struct YamlParams
     Eigen::VectorXd w_foot;
     Eigen::VectorXd w_legacc;
 
+    // MPC settings
+    int horizon;
+    double timestep;
+    int max_iter;
+    
+    // Dynamic settings
+    double friction;
+
     YamlParams(const std::string &filepath)
     {
         try
         {
             YAML::Node config = YAML::LoadFile(filepath);
 
+            // 读取OCP settings
             w_basepos = yamlSequenceToEigen(config["w_basepos"]);
             w_basevel = yamlSequenceToEigen(config["w_basevel"]);
             w_legpos = yamlSequenceToEigen(config["w_legpos"]);
@@ -32,6 +42,14 @@ struct YamlParams
             w_force = yamlSequenceToEigen(config["w_force"]);
             w_foot = yamlSequenceToEigen(config["w_foot"]);
             w_legacc = yamlSequenceToEigen(config["w_legacc"]);
+            
+            // 读取MPC settings
+            horizon = config["horizon"].as<int>();
+            timestep = config["timestep"].as<double>();
+            max_iter = config["max_iter"].as<int>();
+            
+            // 读取Dynamic settings
+            friction = config["friction"].as<double>();
         }
         catch (const std::exception &e)
         {
@@ -61,6 +79,7 @@ struct YamlParams
 
     void printParams() const
     {
+        std::cout << "===== Weight Settings =====" << std::endl;
         std::cout << "w_basepos: " << w_basepos.transpose() << std::endl;
         std::cout << "w_basevel: " << w_basevel.transpose() << std::endl;
         std::cout << "w_legpos: " << w_legpos.transpose() << std::endl;
@@ -68,5 +87,13 @@ struct YamlParams
         std::cout << "w_force: " << w_force.transpose() << std::endl;
         std::cout << "w_foot: " << w_foot.transpose() << std::endl;
         std::cout << "w_legacc: " << w_legacc.transpose() << std::endl;
+        
+        std::cout << "\n===== MPC Settings =====" << std::endl;
+        std::cout << "horizon: " << horizon << std::endl;
+        std::cout << "timestep: " << timestep << std::endl;
+        std::cout << "max_iter: " << max_iter << std::endl;
+        
+        std::cout << "\n===== Dynamic Settings =====" << std::endl;
+        std::cout << "friction: " << friction << std::endl;
     }
 };

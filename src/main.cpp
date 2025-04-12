@@ -63,19 +63,19 @@ int main(int argc, char const *argv[])
         params.w_legacc, params.w_legacc, params.w_legacc, params.w_legacc;
 
     KinodynamicsSettings kd_settings;
-    kd_settings.timestep = 0.02;
+    kd_settings.timestep = params.timestep;
     kd_settings.w_x = w_x_vec.asDiagonal();
     kd_settings.w_u = w_u_vec.asDiagonal();
     kd_settings.w_frame = params.w_foot.asDiagonal();
     kd_settings.qmin = model_handler.getModel().lowerPositionLimit.tail(12);
     kd_settings.qmax = model_handler.getModel().upperPositionLimit.tail(12);
     kd_settings.gravity = gravity;
-    kd_settings.mu = 0.8;
+    kd_settings.mu = params.friction;
     kd_settings.force_size = force_size;
     kd_settings.kinematics_limits = true;
     kd_settings.force_cone = true;
 
-    int T = 25;
+    int T = params.horizon;
     auto kd_problem = std::make_shared<KinodynamicsOCP>(kd_settings, model_handler);
     kd_problem->createProblem(model_handler.getReferenceState(), T, force_size, gravity(2));
 
@@ -90,7 +90,7 @@ int main(int argc, char const *argv[])
     mpc_settings.support_force = -model_handler.getMass() * gravity(2);
     mpc_settings.TOL = 1e-4;
     mpc_settings.mu_init = 1e-8;
-    mpc_settings.max_iters = 2;
+    mpc_settings.max_iters = params.max_iter;
     mpc_settings.num_threads = 1;
     mpc_settings.T_fly = T_fly;
     mpc_settings.T_contact = 0;
