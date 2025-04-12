@@ -8,8 +8,8 @@ w_force: [0.001, 0.001, 0.001]
 w_legacc: [1e-5, 1e-5, 1e-5]
 
 # mpc settings
-horizon: 25     # number of steps in the prediction horizon
-timestep: 0.01  # timestep in the prediction horizon
+horizon: 50     # number of steps in the prediction horizon
+timestep: 0.015  # timestep in the prediction horizon
 max_iter: 1     # maximum number of iterations in ddp solver
 num_threads: 1  # number of threads in ddp solver
 

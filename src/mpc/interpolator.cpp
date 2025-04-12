@@ -1,4 +1,4 @@
-#include "interpolator.hpp"
+#include "mpc/interpolator.hpp"
 
 namespace simple_mpc
 {

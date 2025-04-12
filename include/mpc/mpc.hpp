@@ -13,7 +13,7 @@
 #include <aligator/modelling/dynamics/integrator-explicit.hpp>
 #include <aligator/solvers/proxddp/solver-proxddp.hpp>
 
-#include "foot-trajectory.hpp"
+#include "planner/foot-trajectory.hpp"
 #include "fwd.hpp"
 #include "kinodynamics.hpp"
 #include "robot-handler.hpp"

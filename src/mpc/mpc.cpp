@@ -6,7 +6,7 @@
 // All rights reserved.
 ///////////////////////////////////////////////////////////////////////////////
 
-#include "mpc.hpp"
+#include "mpc/mpc.hpp"
 #include "utils/logger.hpp"
 #include <aligator/modelling/multibody/frame-translation.hpp>
 

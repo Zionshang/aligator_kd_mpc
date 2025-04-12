@@ -1,7 +1,7 @@
-#include "mpc.hpp"
+#include "mpc/mpc.hpp"
 #include <pinocchio/parsers/urdf.hpp>
 #include <pinocchio/parsers/srdf.hpp>
-#include "kinodynamics.hpp"
+#include "mpc/kinodynamics.hpp"
 #include "webots_interface.hpp"
 #include "utils/logger.hpp"
 #include <pinocchio/algorithm/kinematics.hpp>
@@ -9,7 +9,7 @@
 #include "wbc/weighted_wbc.hpp"
 #include "wbc/relaxed_wbc.hpp"
 #include "utils/yaml_loader.hpp"
-#include "interpolator.hpp"
+#include "mpc/interpolator.hpp"
 
 using namespace simple_mpc;
 using Eigen::Quaterniond;
@@ -80,8 +80,7 @@ int main(int argc, char const *argv[])
     kd_problem->createProblem(model_handler.getReferenceState(), T, force_size, gravity(2));
 
     double time_fly = 0.6;
-    // int T_fly = time_fly / kd_settings.timestep;
-    int T_fly = 15;
+    int T_fly = time_fly / kd_settings.timestep;
 
     std::cout << "T_fly: " << T_fly << std::endl;
 

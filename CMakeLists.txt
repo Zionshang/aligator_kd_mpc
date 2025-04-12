@@ -19,17 +19,8 @@ set(WEBOTSLIBRARIES m ${CMAKE_SHARED_LIBRARY_PREFIX}Controller${CMAKE_SHARED_LIB
 include_directories(${WEBOTS_HOME}/include/controller/c ${WEBOTS_HOME}/include/controller/cpp)
 
 file(GLOB_RECURSE SRC_LIST
-  src/foot-trajectory.cpp
-  src/kinodynamics.cpp
-  src/mpc.cpp
-  src/robot-handler.cpp
-  src/webots_interface.cpp
-  src/wbc/wbc_base.cpp
-  src/wbc/weighted_wbc.cpp
-  src/wbc/relaxed_wbc.cpp
-  src/utils/logger.cpp
-  src/interpolator.cpp
-  src/planner/gait_schedule.cpp
+  src/**.cpp
+  src/**/**.cpp
 )
 add_executable(aligator_kd_mpc ${SRC_LIST} src/main.cpp)
 target_link_libraries(aligator_kd_mpc pinocchio::pinocchio)

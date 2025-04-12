@@ -6,7 +6,7 @@
 // All rights reserved.
 ///////////////////////////////////////////////////////////////////////////////
 
-#include "foot-trajectory.hpp"
+#include "planner/foot-trajectory.hpp"
 #include <ndcurves/bezier_curve.h>
 #include <ndcurves/exact_cubic.h>
 #include <ndcurves/se3_curve.h>

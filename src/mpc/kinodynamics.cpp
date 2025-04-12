@@ -1,4 +1,4 @@
-#include "kinodynamics.hpp"
+#include "mpc/kinodynamics.hpp"
 
 #include <aligator/modelling/centroidal/centroidal-friction-cone.hpp>
 #include <aligator/modelling/centroidal/centroidal-wrench-cone.hpp>
