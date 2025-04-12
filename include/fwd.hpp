@@ -33,7 +33,7 @@ namespace simple_mpc
   struct FullDynamicsSettings;
   class RobotDataHandler;
   class FullDynamicsOCP;
-  class KinodynamicsOCP;
+  class OCP;
   class CentroidalOCP;
   class OCPHandler;
   class IDSolver;

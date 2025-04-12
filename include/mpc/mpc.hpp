@@ -86,9 +86,9 @@ namespace simple_mpc
     Eigen::Vector3d next_pose_;
     Eigen::Vector2d twist_vect_;
     MPCSettings settings_;
-    std::shared_ptr<KinodynamicsOCP> ocp_handler_;
+    std::shared_ptr<OCP> ocp_;
 
-    explicit MPC(const MPCSettings &settings, std::shared_ptr<KinodynamicsOCP> problem);
+    explicit MPC(const MPCSettings &settings, std::shared_ptr<OCP> problem);
 
     // Generate the cycle walking problem along which we will iterate
     // the receding horizon
@@ -115,7 +115,7 @@ namespace simple_mpc
     }
     const RobotModelHandler &getModelHandler() const
     {
-      return ocp_handler_->getModelHandler();
+      return ocp_->getModelHandler();
     }
 
     const ConstVectorRef getStateDerivative(const std::size_t t)

@@ -76,7 +76,7 @@ int main(int argc, char const *argv[])
     kd_settings.force_cone = true;
 
     int T = params.horizon;
-    auto kd_problem = std::make_shared<KinodynamicsOCP>(kd_settings, model_handler);
+    auto kd_problem = std::make_shared<OCP>(kd_settings, model_handler);
     kd_problem->createProblem(model_handler.getReferenceState(), T, force_size, gravity(2));
 
     double time_fly = 0.6;
@@ -191,7 +191,7 @@ int main(int argc, char const *argv[])
             a1 = mpc.as_[1];
             forces0 = mpc.us_[0].head(nk * force_size);
             forces1 = mpc.us_[1].head(nk * force_size);
-            contact_states = mpc.ocp_handler_->getContactState(0);
+            contact_states = mpc.ocp_->getContactState(0);
             itr = 0;
             itr_mpc++;
 
@@ -207,7 +207,7 @@ int main(int argc, char const *argv[])
 
             // for (size_t i = 0; i < kd_problem->getSize(); i++)
             // {
-            //     std::cout << mpc.ocp_handler_->getContactState(i)[0] << " ";
+            //     std::cout << mpc.ocp_->getContactState(i)[0] << " ";
             // }
             // std::cout << std::endl;
             

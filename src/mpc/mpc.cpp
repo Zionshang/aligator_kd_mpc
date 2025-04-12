@@ -17,13 +17,13 @@ namespace simple_mpc
 
   constexpr std::size_t maxiters = 100;
 
-  MPC::MPC(const MPCSettings &settings, std::shared_ptr<KinodynamicsOCP> problem)
-      : settings_(settings), ocp_handler_(problem)
+  MPC::MPC(const MPCSettings &settings, std::shared_ptr<OCP> problem)
+      : settings_(settings), ocp_(problem)
   {
-    data_handler_ = std::make_shared<RobotDataHandler>(ocp_handler_->getModelHandler());
-    data_handler_->updateInternalData(ocp_handler_->getModelHandler().getReferenceState(), true);
+    data_handler_ = std::make_shared<RobotDataHandler>(ocp_->getModelHandler());
+    data_handler_->updateInternalData(ocp_->getModelHandler().getReferenceState(), true);
     std::map<std::string, Eigen::Vector3d> starting_poses;
-    for (auto const &name : ocp_handler_->getModelHandler().getFeetNames())
+    for (auto const &name : ocp_->getModelHandler().getFeetNames())
     {
       starting_poses.insert({name, data_handler_->getFootPose(name).translation()});
 
@@ -31,11 +31,11 @@ namespace simple_mpc
           {name, data_handler_->getBaseFramePose().inverse() * data_handler_->getFootPose(name)});
     }
     foot_trajectories_ = FootTrajectory(
-        starting_poses, settings_.swing_apex, settings_.T_fly, settings_.T_contact, ocp_handler_->getSize());
+        starting_poses, settings_.swing_apex, settings_.T_fly, settings_.T_contact, ocp_->getSize());
 
     foot_trajectories_.updateApex(settings.swing_apex);
-    x0_ = ocp_handler_->getProblemState(*data_handler_);
-    x_ref_.assign(ocp_handler_->getSize(), x0_);
+    x0_ = ocp_->getProblemState(*data_handler_);
+    x_ref_.assign(ocp_->getSize(), x0_);
 
     solver_ = std::make_unique<SolverProxDDP>(settings_.TOL, settings_.mu_init, maxiters, aligator::VerboseLevel::QUIET);
     solver_->rollout_type_ = aligator::RolloutType::LINEAR;
@@ -50,8 +50,8 @@ namespace simple_mpc
     solver_->force_initial_condition_ = true;
     // solver_->reg_min = 1e-6;
 
-    ee_names_ = ocp_handler_->getModelHandler().getFeetNames();
-    Eigen::VectorXd force_ref(ocp_handler_->getReferenceForce(0, ocp_handler_->getModelHandler().getFootName(0)));
+    ee_names_ = ocp_->getModelHandler().getFeetNames();
+    Eigen::VectorXd force_ref(ocp_->getReferenceForce(0, ocp_->getModelHandler().getFootName(0)));
 
     std::map<std::string, bool> contact_states;
     std::map<std::string, pinocchio::SE3> contact_poses;
@@ -64,28 +64,28 @@ namespace simple_mpc
       force_map.insert({name, force_ref});
     }
 
-    for (std::size_t i = 0; i < ocp_handler_->getSize(); i++)
+    for (std::size_t i = 0; i < ocp_->getSize(); i++)
     {
       xs_.push_back(x0_);
-      us_.push_back(ocp_handler_->getReferenceControl(0));
+      us_.push_back(ocp_->getReferenceControl(0));
 
-      std::shared_ptr<StageModel> sm = std::make_shared<StageModel>(ocp_handler_->createStage(contact_states, contact_poses, force_map));
+      std::shared_ptr<StageModel> sm = std::make_shared<StageModel>(ocp_->createStage(contact_states, contact_poses, force_map));
       standing_horizon_.push_back(sm);
       standing_horizon_data_.push_back(sm->createData());
     }
     xs_.push_back(x0_);
 
-    solver_->setup(ocp_handler_->getProblem());
-    solver_->run(ocp_handler_->getProblem(), xs_, us_);
+    solver_->setup(ocp_->getProblem());
+    solver_->run(ocp_->getProblem(), xs_, us_);
 
     xs_ = solver_->results_.xs;
     us_ = solver_->results_.us;
     Ks_ = solver_->results_.getCtrlFeedbacks();
 
-    as_.resize(ocp_handler_->getSize());
+    as_.resize(ocp_->getSize());
     // saveVectorsToCsv("initial_xs.csv", xs_);
-    // std::cout << ocp_handler_->getReferencePose(0, "FL_foot_link");
-    // std::cout << ocp_handler_->getReferencePose(ocp_handler_->getSize()-1, "FL_foot_link");
+    // std::cout << ocp_->getReferencePose(0, "FL_foot_link");
+    // std::cout << ocp_->getReferencePose(ocp_->getSize()-1, "FL_foot_link");
 
     solver_->max_iters = settings_.max_iters;
 
@@ -101,7 +101,7 @@ namespace simple_mpc
     contact_states_ = contact_states;
 
     // Guarantee that cycle horizon size is higher than problem size
-    int m = int(ocp_handler_->getSize()) / int(contact_states.size());
+    int m = int(ocp_->getSize()) / int(contact_states.size());
     for (int i = 0; i < m; i++)
     {
       std::vector<std::map<std::string, bool>> copy_vec = contact_states;
@@ -119,12 +119,12 @@ namespace simple_mpc
         {
           // !这里要加上ocp_handler_->getSize()，是因为mpc首先会求一次完整周期的stance步态，
           // !利用这个stance步态进行热启动，swing步态处于第二个周期，所以要加上一个周期的时间
-          foot_land_times_.at(name).push_back((int)(i + ocp_handler_->getSize()));
+          foot_land_times_.at(name).push_back((int)(i + ocp_->getSize()));
         }
       }
       // 保证首尾连续性，如果最后时刻是摆动腿且第一个时刻是支撑腿
       if (!contact_states_.back().at(name) and contact_states_[0].at(name))
-        foot_land_times_.at(name).push_back((int)(contact_states_.size() - 1 + ocp_handler_->getSize()));
+        foot_land_times_.at(name).push_back((int)(contact_states_.size() - 1 + ocp_->getSize()));
     }
 
     // Generate the model stages for cycle horizon
@@ -138,8 +138,8 @@ namespace simple_mpc
           active_contacts += 1;
       }
 
-      Eigen::VectorXd force_ref(ocp_handler_->getReferenceForce(0, ocp_handler_->getModelHandler().getFootName(0)));
-      Eigen::VectorXd force_zero(ocp_handler_->getReferenceForce(0, ocp_handler_->getModelHandler().getFootName(0)));
+      Eigen::VectorXd force_ref(ocp_->getReferenceForce(0, ocp_->getModelHandler().getFootName(0)));
+      Eigen::VectorXd force_zero(ocp_->getReferenceForce(0, ocp_->getModelHandler().getFootName(0)));
       force_ref.setZero();
       force_zero.setZero();
       force_ref[2] = settings_.support_force / active_contacts;
@@ -156,7 +156,7 @@ namespace simple_mpc
           force_map.insert({name, force_zero});
       }
 
-      std::shared_ptr<StageModel> sm = std::make_shared<StageModel>(ocp_handler_->createStage(state, contact_poses, force_map));
+      std::shared_ptr<StageModel> sm = std::make_shared<StageModel>(ocp_->createStage(state, contact_poses, force_map));
       cycle_horizon_.push_back(sm);
       cycle_horizon_data_.push_back(sm->createData());
     }
@@ -174,7 +174,7 @@ namespace simple_mpc
     updateStepTrackerReferences();
 
     // Recede previous solutions
-    x0_ << ocp_handler_->getProblemState(*data_handler_);
+    x0_ << ocp_->getProblemState(*data_handler_);
     xs_.erase(xs_.begin());
     xs_[0] = x0_;
     xs_.push_back(xs_.back());
@@ -182,18 +182,18 @@ namespace simple_mpc
     us_.erase(us_.begin());
     us_.push_back(us_.back());
 
-    ocp_handler_->getProblem().setInitState(x0_);
+    ocp_->getProblem().setInitState(x0_);
 
     // Run solver
-    solver_->run(ocp_handler_->getProblem(), xs_, us_);
+    solver_->run(ocp_->getProblem(), xs_, us_);
 
     // Collect results
     xs_ = solver_->results_.xs;
     us_ = solver_->results_.us;
     Ks_ = solver_->results_.getCtrlFeedbacks();
-    for (int i = 0; i < ocp_handler_->getSize(); i++) // ? 放在MPC内部好还是外部好？
+    for (int i = 0; i < ocp_->getSize(); i++) // ? 放在MPC内部好还是外部好？
     {
-      as_[i] = getStateDerivative(i).tail(ocp_handler_->getModelHandler().getModel().nv);
+      as_[i] = getStateDerivative(i).tail(ocp_->getModelHandler().getModel().nv);
     }
   }
 
@@ -211,10 +211,10 @@ namespace simple_mpc
   }
   void MPC::recedeOnceCycle()
   {
-    if (now_ == WALKING or ocp_handler_->getContactSupport(ocp_handler_->getSize() - 1) < ee_names_.size())
+    if (now_ == WALKING or ocp_->getContactSupport(ocp_->getSize() - 1) < ee_names_.size())
     {
-      ocp_handler_->getProblem().replaceStageCircular(*cycle_horizon_[0]);
-      solver_->cycleProblem(ocp_handler_->getProblem(), cycle_horizon_data_[0]); // ? 每次都是必须的吗？
+      ocp_->getProblem().replaceStageCircular(*cycle_horizon_[0]);
+      solver_->cycleProblem(ocp_->getProblem(), cycle_horizon_data_[0]); // ? 每次都是必须的吗？
 
       std::cout << "!!recedeOnceCycle!!" << std::endl;
       rotate_vec_left(cycle_horizon_);
@@ -224,14 +224,14 @@ namespace simple_mpc
       {
         if (contact_states_[contact_states_.size() - 1].at(name) and
             !contact_states_[contact_states_.size() - 2].at(name))
-          foot_land_times_.at(name).push_back((int)(contact_states_.size() + ocp_handler_->getSize()));
+          foot_land_times_.at(name).push_back((int)(contact_states_.size() + ocp_->getSize()));
       }
       updateCycleTiming(false); // ?为什么这里是false
     }
     else
     {
-      ocp_handler_->getProblem().replaceStageCircular(*standing_horizon_[0]);
-      solver_->cycleProblem(ocp_handler_->getProblem(), standing_horizon_data_[0]);
+      ocp_->getProblem().replaceStageCircular(*standing_horizon_[0]);
+      solver_->cycleProblem(ocp_->getProblem(), standing_horizon_data_[0]);
 
       rotate_vec_left(standing_horizon_);
       rotate_vec_left(standing_horizon_data_);
@@ -259,7 +259,7 @@ namespace simple_mpc
       {
         // 如果更新的是整个stage_models周期，或者foot_land_times 小于mpc预测周期，那么就减1
         // 站立阶段时，updateOnlyHorizon为true，窗口不需要更新
-        if (!updateOnlyHorizon or foot_land_times_.at(name)[i] < (int)ocp_handler_->getSize())
+        if (!updateOnlyHorizon or foot_land_times_.at(name)[i] < (int)ocp_->getSize())
           foot_land_times_.at(name)[i] -= 1;
       }
       // 如果第一个时间小于0，那么就删除
@@ -281,11 +281,11 @@ namespace simple_mpc
   void MPC::updateStepTrackerReferences()
   {
     // Set reference state
-    for (int i = 0; i < ocp_handler_->getSize(); i++)
+    for (int i = 0; i < ocp_->getSize(); i++)
     {
-      ocp_handler_->setReferenceState(i, x_ref_[i]);
+      ocp_->setReferenceState(i, x_ref_[i]);
     }
-    ocp_handler_->setTerminalReferenceState(x_ref_[ocp_handler_->getSize() - 1]);
+    ocp_->setTerminalReferenceState(x_ref_[ocp_->getSize() - 1]);
 
     velocity_base_ = x_ref_[0].segment(getModelHandler().getModel().nq, 6);
     for (auto const &name : ee_names_)
@@ -315,17 +315,17 @@ namespace simple_mpc
 
       foot_trajectories_.updateTrajectory(update, foot_land_time, data_handler_->getFootPose(name).translation(), next_pose_, name);
       pinocchio::SE3 pose_ref = pinocchio::SE3::Identity();
-      for (unsigned long time = 0; time < ocp_handler_->getSize(); time++)
+      for (unsigned long time = 0; time < ocp_->getSize(); time++)
       {
         pose_ref.translation() = foot_trajectories_.getReference(name)[time];
-        ocp_handler_->setReferenceFootPose(time, name, pose_ref);
+        ocp_->setReferenceFootPose(time, name, pose_ref);
       }
     }
   }
 
   TrajOptProblem &MPC::getTrajOptProblem()
   {
-    return ocp_handler_->getProblem();
+    return ocp_->getProblem();
   }
 
   void MPC::switchToWalk(const Vector6d &velocity_base)
@@ -343,9 +343,9 @@ namespace simple_mpc
   void MPC::testCost()
   {
     double state_cost = 0, control_cost = 0, foot_cost = 0;
-    for (size_t i = 0; i < ocp_handler_->getSize(); i++)
+    for (size_t i = 0; i < ocp_->getSize(); i++)
     {
-      CostStack *cs = ocp_handler_->getCostStack(i);
+      CostStack *cs = ocp_->getCostStack(i);
       QuadraticStateCost *qsc = cs->getComponent<QuadraticStateCost>("state_cost");
       auto data_qsc = qsc->createData();
       qsc->evaluate(xs_[i + 1], us_[i], *data_qsc);
@@ -356,7 +356,7 @@ namespace simple_mpc
       qcc->evaluate(xs_[i + 1], us_[i], *data_qcc);
       control_cost += data_qcc->value_;
 
-      for (auto const &name : ocp_handler_->getModelHandler().getFeetNames())
+      for (auto const &name : ocp_->getModelHandler().getFeetNames())
       {
         QuadraticResidualCost *qrc = cs->getComponent<QuadraticResidualCost>(name + "_pose_cost");
         auto data_qrc = qrc->createData();
@@ -366,7 +366,7 @@ namespace simple_mpc
         // FrameTranslationResidual *cfr = qrc->getResidual<FrameTranslationResidual>();
         // auto data_cfr = cfr->createData();
         // cfr->evaluate(xs_[i + 1], *data_cfr);
-        // if (name == ocp_handler_->getModelHandler().getFeetNames()[0])
+        // if (name == ocp_->getModelHandler().getFeetNames()[0])
         // {
         //   std::cout << data_cfr->value_.transpose() << std::endl;
         // }

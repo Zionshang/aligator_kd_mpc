@@ -24,7 +24,7 @@ namespace simple_mpc
   using CenterOfMassTranslationResidual = CenterOfMassTranslationResidualTpl<double>;
   using IntegratorSemiImplEuler = dynamics::IntegratorSemiImplEulerTpl<double>;
 
-  KinodynamicsOCP::KinodynamicsOCP(const KinodynamicsSettings &settings, const RobotModelHandler &model_handler)
+  OCP::OCP(const KinodynamicsSettings &settings, const RobotModelHandler &model_handler)
       : settings_(settings), model_handler_(model_handler), problem_(nullptr)
   {
     nq_ = model_handler.getModel().nq;
@@ -36,7 +36,7 @@ namespace simple_mpc
     control_ref_.setZero();
   }
 
-  StageModel KinodynamicsOCP::createStage(const std::map<std::string, bool> &contact_phase,
+  StageModel OCP::createStage(const std::map<std::string, bool> &contact_phase,
                                           const std::map<std::string, pinocchio::SE3> &contact_pose,
                                           const std::map<std::string, Eigen::VectorXd> &contact_force)
   {
@@ -107,7 +107,7 @@ namespace simple_mpc
     return stm;
   }
 
-  void KinodynamicsOCP::setReferenceFootPose(const std::size_t t, const std::string &ee_name, const pinocchio::SE3 &pose_ref)
+  void OCP::setReferenceFootPose(const std::size_t t, const std::string &ee_name, const pinocchio::SE3 &pose_ref)
   {
     CostStack *cs = getCostStack(t);
     QuadraticResidualCost *qrc = cs->getComponent<QuadraticResidualCost>(ee_name + "_pose_cost");
@@ -115,21 +115,21 @@ namespace simple_mpc
     cfr->setReference(pose_ref.translation());
   }
 
-  void KinodynamicsOCP::setReferenceState(const std::size_t t, const ConstVectorRef &x_ref)
+  void OCP::setReferenceState(const std::size_t t, const ConstVectorRef &x_ref)
   {
     CostStack *cs = getCostStack(t);
     QuadraticStateCost *qsc = cs->getComponent<QuadraticStateCost>("state_cost");
     qsc->setTarget(x_ref);
   }
 
-  void KinodynamicsOCP::setTerminalReferenceState(const ConstVectorRef &x_ref)
+  void OCP::setTerminalReferenceState(const ConstVectorRef &x_ref)
   {
     CostStack *cs = getTerminalCostStack();
     QuadraticStateCost *qsc = cs->getComponent<QuadraticStateCost>("term_state_cost");
     qsc->setTarget(x_ref);
   }
 
-  void KinodynamicsOCP::computeControlFromForces(const std::map<std::string, Eigen::VectorXd> &force_refs)
+  void OCP::computeControlFromForces(const std::map<std::string, Eigen::VectorXd> &force_refs)
   {
     for (std::size_t i = 0; i < model_handler_.getFeetNames().size(); i++)
     {
@@ -142,7 +142,7 @@ namespace simple_mpc
     }
   }
 
-  const Eigen::VectorXd KinodynamicsOCP::getReferenceForce(const std::size_t i, const std::string &ee_name)
+  const Eigen::VectorXd OCP::getReferenceForce(const std::size_t i, const std::string &ee_name)
   {
     std::vector<std::string> hname = model_handler_.getFeetNames();
     std::vector<std::string>::iterator it = std::find(hname.begin(), hname.end(), ee_name);
@@ -151,12 +151,12 @@ namespace simple_mpc
     return getReferenceControl(i).segment(id * settings_.force_size, settings_.force_size);
   }
 
-  const Eigen::VectorXd KinodynamicsOCP::getProblemState(const RobotDataHandler &data_handler)
+  const Eigen::VectorXd OCP::getProblemState(const RobotDataHandler &data_handler)
   {
     return data_handler.getState();
   }
 
-  size_t KinodynamicsOCP::getContactSupport(const std::size_t t)
+  size_t OCP::getContactSupport(const std::size_t t)
   {
     KinodynamicsFwdDynamics *ode =
         problem_->stages_[t]->getDynamics<IntegratorSemiImplEuler>()->getDynamics<KinodynamicsFwdDynamics>();
@@ -172,7 +172,7 @@ namespace simple_mpc
     return active_contacts;
   }
 
-  std::vector<bool> KinodynamicsOCP::getContactState(const std::size_t t)
+  std::vector<bool> OCP::getContactState(const std::size_t t)
   {
     KinodynamicsFwdDynamics *ode =
         problem_->stages_[t]->getDynamics<IntegratorSemiImplEuler>()->getDynamics<KinodynamicsFwdDynamics>();
@@ -180,7 +180,7 @@ namespace simple_mpc
     return ode->contact_states_;
   }
 
-  CostStack KinodynamicsOCP::createTerminalCost()
+  CostStack OCP::createTerminalCost()
   {
     auto ter_space = MultibodyPhaseSpace(model_handler_.getModel());
     auto term_cost = CostStack(ter_space, nu_);
@@ -191,7 +191,7 @@ namespace simple_mpc
   }
 
   // todo: 传参改为传递结构体
-  void KinodynamicsOCP::createProblem(const ConstVectorRef &x0,
+  void OCP::createProblem(const ConstVectorRef &x0,
                                       const size_t horizon,
                                       const int force_size,
                                       const double gravity) // todo: double 改为 Eigen::Vector3d
@@ -238,21 +238,21 @@ namespace simple_mpc
     problem_ = std::make_unique<TrajOptProblem>(x0, std::move(stage_models), createTerminalCost());
   }
 
-  void KinodynamicsOCP::setReferenceControl(const std::size_t t, const ConstVectorRef &u_ref)
+  void OCP::setReferenceControl(const std::size_t t, const ConstVectorRef &u_ref)
   {
     CostStack *cs = getCostStack(t);
     QuadraticControlCost *qc = cs->getComponent<QuadraticControlCost>("control_cost");
     qc->setTarget(u_ref);
   }
 
-  ConstVectorRef KinodynamicsOCP::getReferenceControl(const std::size_t t)
+  ConstVectorRef OCP::getReferenceControl(const std::size_t t)
   {
     CostStack *cs = getCostStack(t);
     QuadraticControlCost *qc = cs->getComponent<QuadraticControlCost>("control_cost");
     return qc->getTarget();
   }
 
-  CostStack *KinodynamicsOCP::getCostStack(std::size_t t)
+  CostStack *OCP::getCostStack(std::size_t t)
   {
     if (t >= getSize())
     {
@@ -263,13 +263,13 @@ namespace simple_mpc
     return cs;
   }
 
-  CostStack *KinodynamicsOCP::getTerminalCostStack()
+  CostStack *OCP::getTerminalCostStack()
   {
     CostStack *cs = dynamic_cast<CostStack *>(&*problem_->term_cost_);
 
     return cs;
   }
-  const pinocchio::SE3 KinodynamicsOCP::getReferenceFootPose(const std::size_t t, const std::string & ee_name)
+  const pinocchio::SE3 OCP::getReferenceFootPose(const std::size_t t, const std::string & ee_name)
   {
     CostStack * cs = getCostStack(t);
     QuadraticResidualCost * qrc = cs->getComponent<QuadraticResidualCost>(ee_name + "_pose_cost");
