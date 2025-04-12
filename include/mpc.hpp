@@ -100,7 +100,9 @@ namespace simple_mpc
     void updateCycleTiming(const bool updateOnlyHorizon);
 
     // Recede the horizon
-    void recedeWithCycle(double current_time);
+    void recedeOnceCycle();
+
+    void recedeCycles(double current_time);
 
     void setReferenceState(const std::vector<VectorXd> &x_ref) { x_ref_ = x_ref; }
 

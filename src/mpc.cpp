@@ -168,7 +168,7 @@ namespace simple_mpc
     data_handler_->updateInternalData(x, false);
 
     // Recede all horizons
-    recedeWithCycle(current_time);
+    recedeCycles(current_time);
 
     // Update the feet and CoM references
     updateStepTrackerReferences();
@@ -197,30 +197,36 @@ namespace simple_mpc
     }
   }
 
-  void MPC::recedeWithCycle(double current_time)
+  void MPC::recedeCycles(double current_time)
+  {
+    int time_steps = std::floor((current_time - last_recede_time_) / settings_.timestep + 1e-6);
+    if (time_steps > 0)
+    {
+      for (int i = 0; i < time_steps; ++i)
+      {
+        recedeOnceCycle();
+      }
+      last_recede_time_ += time_steps * settings_.timestep;
+    }
+  }
+  void MPC::recedeOnceCycle()
   {
     if (now_ == WALKING or ocp_handler_->getContactSupport(ocp_handler_->getSize() - 1) < ee_names_.size())
     {
-      constexpr double epsilon = 1e-6;
-      // std::cout << "current_time: " << current_time << " last_recede_time_" << last_recede_time_ << " error: " << current_time - last_recede_time_ << std::endl;
-      if (current_time - last_recede_time_ >= settings_.timestep - epsilon)
-      {
-        ocp_handler_->getProblem().replaceStageCircular(*cycle_horizon_[0]);
-        solver_->cycleProblem(ocp_handler_->getProblem(), cycle_horizon_data_[0]); // ? 每次都是必须的吗？
+      ocp_handler_->getProblem().replaceStageCircular(*cycle_horizon_[0]);
+      solver_->cycleProblem(ocp_handler_->getProblem(), cycle_horizon_data_[0]); // ? 每次都是必须的吗？
 
-        std::cout << "!!recedeWithCycle!!" << std::endl;
-        rotate_vec_left(cycle_horizon_);
-        rotate_vec_left(cycle_horizon_data_);
-        rotate_vec_left(contact_states_);
-        for (auto const &name : ee_names_)
-        {
-          if (contact_states_[contact_states_.size() - 1].at(name) and
-              !contact_states_[contact_states_.size() - 2].at(name))
-            foot_land_times_.at(name).push_back((int)(contact_states_.size() + ocp_handler_->getSize()));
-        }
-        updateCycleTiming(false); // ?为什么这里是false
-        last_recede_time_ = current_time;
+      std::cout << "!!recedeOnceCycle!!" << std::endl;
+      rotate_vec_left(cycle_horizon_);
+      rotate_vec_left(cycle_horizon_data_);
+      rotate_vec_left(contact_states_);
+      for (auto const &name : ee_names_)
+      {
+        if (contact_states_[contact_states_.size() - 1].at(name) and
+            !contact_states_[contact_states_.size() - 2].at(name))
+          foot_land_times_.at(name).push_back((int)(contact_states_.size() + ocp_handler_->getSize()));
       }
+      updateCycleTiming(false); // ?为什么这里是false
     }
     else
     {
