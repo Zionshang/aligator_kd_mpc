@@ -62,6 +62,11 @@ int main(int argc, char const *argv[])
     w_u_vec << params.w_force, params.w_force, params.w_force, params.w_force,
         params.w_legacc, params.w_legacc, params.w_legacc, params.w_legacc;
 
+    VectorXd w_legpos_vec(model.nv - 6);
+    w_u_vec << params.w_legpos, params.w_legpos, params.w_legpos, params.w_legpos;
+    VectorXd w_legvel_vec(model.nv - 6);
+    w_u_vec << params.w_legvel, params.w_legvel, params.w_legvel, params.w_legvel;
+
     OcpSettings ocp_settings;
     ocp_settings.timestep = params.timestep;
     ocp_settings.w_x = w_x_vec.asDiagonal();
@@ -73,6 +78,11 @@ int main(int argc, char const *argv[])
     ocp_settings.mu = params.friction;
     ocp_settings.force_size = force_size;
     ocp_settings.kinematics_limits = true;
+    ocp_settings.w_body_trans = params.w_basepos.head(3).asDiagonal();
+    ocp_settings.w_body_rot = params.w_basepos.tail(3).asDiagonal();
+    ocp_settings.w_body_vel = params.w_basevel.asDiagonal();
+    ocp_settings.w_leg_pos = w_legpos_vec.asDiagonal();
+    ocp_settings.w_leg_vel = w_legvel_vec.asDiagonal();
 
     int T = params.horizon;
     auto kd_problem = std::make_shared<OCP>(ocp_settings, model_handler);
@@ -200,7 +210,6 @@ int main(int argc, char const *argv[])
             //     std::cout << mpc.ocp_->getContactState(i)[0] << " ";
             // }
             // std::cout << std::endl;
-            
 
 #ifdef LOGGING
             fl_foot_ref_logger.push_back(kd_problem->getReferenceFootPose(0, "FL_foot_link").translation());

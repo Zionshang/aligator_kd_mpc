@@ -37,8 +37,8 @@ namespace simple_mpc
   }
 
   StageModel OCP::createStage(const std::map<std::string, bool> &contact_phase,
-                                          const std::map<std::string, pinocchio::SE3> &contact_pose,
-                                          const std::map<std::string, Eigen::VectorXd> &contact_force)
+                              const std::map<std::string, pinocchio::SE3> &contact_pose,
+                              const std::map<std::string, Eigen::VectorXd> &contact_force)
   {
     auto space = MultibodyPhaseSpace(model_handler_.getModel());
     auto rcost = CostStack(space, nu_);
@@ -50,7 +50,36 @@ namespace simple_mpc
 
     computeControlFromForces(contact_force);
 
-    rcost.addCost("state_cost", QuadraticStateCost(space, nu_, x0_, settings_.w_x));
+    // 机身位置成本
+    FrameTranslationResidual body_trans_residual = FrameTranslationResidual(
+        space.ndx(), nu_, model_handler_.getModel(), x0_.head(3), model_handler_.getBaseFrameId());
+    rcost.addCost("body_trans_cost", QuadraticResidualCost(space, body_trans_residual, settings_.w_body_trans));
+
+    // 机身旋转成本
+    FramePlacementResidual body_place_residual = FramePlacementResidual(
+        space.ndx(), nu_, model_handler_.getModel(), pinocchio::SE3::Identity(), model_handler_.getBaseFrameId());
+    std::vector<int> body_rot_id{3, 4, 5};
+    FunctionSliceXpr body_rot_residual = FunctionSliceXpr(body_place_residual, body_rot_id);
+    rcost.addCost("body_rot_cost", QuadraticResidualCost(space, body_rot_residual, settings_.w_body_rot));
+
+    // 机身速度成本
+    FrameVelocityResidual body_vel_residual = FrameVelocityResidual(
+        space.ndx(), nu_, model_handler_.getModel(), Motion::Zero(), model_handler_.getBaseFrameId(), pinocchio::LOCAL_WORLD_ALIGNED);
+    rcost.addCost("body_vel_cost", QuadraticResidualCost(space, body_vel_residual, settings_.w_body_vel));
+
+    // 腿的关节位置和速度成本
+    StateErrorResidual state_residual = StateErrorResidual(space, nu_, space.neutral());
+    std::vector<int> leg_pos_id, leg_vel_id;
+    for (int i = 6; i < nv_; i++)
+      leg_pos_id.push_back(i);
+    for (int i = nv_ + 6; i < nv_ + nv_; i++)
+      leg_vel_id.push_back(i);
+    FunctionSliceXpr leg_pos_residual = FunctionSliceXpr(state_residual, leg_pos_id);
+    FunctionSliceXpr leg_vel_residual = FunctionSliceXpr(state_residual, leg_vel_id);
+    rcost.addCost("leg_pos_cost", QuadraticResidualCost(space, leg_pos_residual, settings_.w_leg_pos));
+    rcost.addCost("leg_vel_cost", QuadraticResidualCost(space, leg_pos_residual, settings_.w_leg_vel));
+
+    // 控制输入成本
     rcost.addCost("control_cost", QuadraticControlCost(space, control_ref_, settings_.w_u));
 
     for (auto const &name : model_handler_.getFeetNames())
@@ -87,9 +116,9 @@ namespace simple_mpc
       if (contact_phase.at(name))
       {
         // 摩擦力约束
-          CentroidalFrictionConeResidual friction_residual =
-              CentroidalFrictionConeResidual(space.ndx(), nu_, i, settings_.mu, 1e-4);
-          stm.addConstraint(friction_residual, NegativeOrthant());
+        CentroidalFrictionConeResidual friction_residual =
+            CentroidalFrictionConeResidual(space.ndx(), nu_, i, settings_.mu, 1e-4);
+        stm.addConstraint(friction_residual, NegativeOrthant());
 
         // 支撑腿速度为 0 约束
         FrameVelocityResidual frame_vel = FrameVelocityResidual(
@@ -115,8 +144,33 @@ namespace simple_mpc
   void OCP::setReferenceState(const std::size_t t, const ConstVectorRef &x_ref)
   {
     CostStack *cs = getCostStack(t);
-    QuadraticStateCost *qsc = cs->getComponent<QuadraticStateCost>("state_cost");
-    qsc->setTarget(x_ref);
+    QuadraticResidualCost *body_trans_cost = cs->getComponent<QuadraticResidualCost>("body_trans_cost");
+    FrameTranslationResidual *body_trans_residual = body_trans_cost->getResidual<FrameTranslationResidual>();
+
+    QuadraticResidualCost *body_rot_cost = cs->getComponent<QuadraticResidualCost>("body_rot_cost");
+    FramePlacementResidual *body_rot_residual = body_rot_cost->getResidual<FramePlacementResidual>();
+
+    QuadraticResidualCost *body_vel_cost = cs->getComponent<QuadraticResidualCost>("body_vel_cost");
+    FrameVelocityResidual *body_vel_residual = body_vel_cost->getResidual<FrameVelocityResidual>();
+
+    // QuadraticResidualCost *leg_pos_cost = cs->getComponent<QuadraticResidualCost>("leg_pos_cost");
+    // StateErrorResidual *leg_pos_residual = leg_pos_cost->getResidual<StateErrorResidual>();
+
+    // QuadraticResidualCost *leg_vel_cost = cs->getComponent<QuadraticResidualCost>("leg_vel_cost");
+    // StateErrorResidual *leg_vel_residual = leg_pos_cost->getResidual<StateErrorResidual>();
+
+    body_trans_residual->setReference(x_ref.head(3));
+    Eigen::Quaterniond quat(x_ref(6), x_ref(3), x_ref(4), x_ref(5));
+    pinocchio::SE3 se3 = pinocchio::SE3::Identity();
+    se3.rotation(quat.toRotationMatrix());
+    body_rot_residual->setReference(se3);
+    std::cout << "Test" << std::endl;
+
+    pinocchio::Motion v_ref = pinocchio::Motion(x_ref.segment(nq_, 6));
+    body_vel_residual->setReference(v_ref);
+    // qsc->setTarget(x_ref);
+    std::cout << "Test" << std::endl;
+
   }
 
   void OCP::setTerminalReferenceState(const ConstVectorRef &x_ref)
@@ -189,9 +243,9 @@ namespace simple_mpc
 
   // todo: 传参改为传递结构体
   void OCP::createProblem(const ConstVectorRef &x0,
-                                      const size_t horizon,
-                                      const int force_size,
-                                      const double gravity) // todo: double 改为 Eigen::Vector3d
+                          const size_t horizon,
+                          const int force_size,
+                          const double gravity) // todo: double 改为 Eigen::Vector3d
   {
     std::vector<std::map<std::string, bool>> contact_phases;
     std::vector<std::map<std::string, pinocchio::SE3>> contact_poses;
@@ -266,11 +320,11 @@ namespace simple_mpc
 
     return cs;
   }
-  const pinocchio::SE3 OCP::getReferenceFootPose(const std::size_t t, const std::string & ee_name)
+  const pinocchio::SE3 OCP::getReferenceFootPose(const std::size_t t, const std::string &ee_name)
   {
-    CostStack * cs = getCostStack(t);
-    QuadraticResidualCost * qrc = cs->getComponent<QuadraticResidualCost>(ee_name + "_pose_cost");
-    FrameTranslationResidual * cfr = qrc->getResidual<FrameTranslationResidual>();
+    CostStack *cs = getCostStack(t);
+    QuadraticResidualCost *qrc = cs->getComponent<QuadraticResidualCost>(ee_name + "_pose_cost");
+    FrameTranslationResidual *cfr = qrc->getResidual<FrameTranslationResidual>();
     SE3 ref = SE3::Identity();
     ref.translation() = cfr->getReference();
     return ref;

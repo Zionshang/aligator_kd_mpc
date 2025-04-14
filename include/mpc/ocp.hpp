@@ -54,6 +54,13 @@ namespace simple_mpc
     Eigen::MatrixXd w_u;     // Control
     Eigen::MatrixXd w_frame; // End effector placement
 
+
+    Eigen::MatrixXd w_body_trans;
+    Eigen::MatrixXd w_body_rot;    
+    Eigen::MatrixXd w_body_vel; 
+    Eigen::MatrixXd w_leg_pos;   
+    Eigen::MatrixXd w_leg_vel;    
+
     // Kinematics limits
     Eigen::VectorXd qmin;
     Eigen::VectorXd qmax;
