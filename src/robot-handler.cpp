@@ -95,14 +95,4 @@ namespace simple_mpc
     nonLinearEffects(model_handler_.getModel(), data_, q, v);
     dccrba(model_handler_.getModel(), data_, q, v);
   }
-
-  RobotDataHandler::CentroidalStateVector RobotDataHandler::getCentroidalState() const
-  {
-    RobotDataHandler::CentroidalStateVector x_centroidal;
-    x_centroidal.head(3) = data_.com[0];
-    x_centroidal.segment(3, 3) = data_.hg.linear();
-    x_centroidal.tail(3) = data_.hg.angular();
-    return x_centroidal;
-  }
-
 } // namespace simple_mpc

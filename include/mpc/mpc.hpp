@@ -60,6 +60,11 @@ namespace simple_mpc
       MOTION
     };
 
+    void updatePinocchioInfo(const VectorXd &q, const VectorXd &v);
+
+    int nq_;
+    int nv_;
+    pin::Data data_;
     // contact_states_指的是cycle_horizon_中每个时刻的接触状态，而非MPC中的接触状态
     // MPC中的接触状态要比cycle_horizon_多一个一开始的完整stance周期
     std::vector<std::map<std::string, bool>> contact_states_;

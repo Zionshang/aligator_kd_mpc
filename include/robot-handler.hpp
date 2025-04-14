@@ -191,7 +191,6 @@ namespace simple_mpc
     {
       return x_;
     };
-    RobotDataHandler::CentroidalStateVector getCentroidalState() const;
   };
 
 } // namespace simple_mpc

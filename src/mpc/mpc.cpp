@@ -20,6 +20,9 @@ namespace simple_mpc
   MPC::MPC(const MPCSettings &settings, std::shared_ptr<OCP> problem)
       : settings_(settings), ocp_(problem)
   {
+    nq_ = ocp_->getModelHandler().getModel().nq;
+    nv_ = ocp_->getModelHandler().getModel().nv;
+    data_ = pin::Data(ocp_->getModelHandler().getModel());
     data_handler_ = std::make_shared<RobotDataHandler>(ocp_->getModelHandler());
     data_handler_->updateInternalData(ocp_->getModelHandler().getReferenceState(), true);
     std::map<std::string, Eigen::Vector3d> starting_poses;
@@ -96,6 +99,13 @@ namespace simple_mpc
     twist_vect_.setZero();
   }
 
+  void MPC::updatePinocchioInfo(const VectorXd &q, const VectorXd &v)
+  {
+    const auto &model = ocp_->getModelHandler().getModel();
+    pin::forwardKinematics(model, data_, q);
+    pin::updateFramePlacements(model, data_);
+  }
+
   void MPC::generateCycleHorizon(const std::vector<std::map<std::string, bool>> &contact_states)
   {
     contact_states_ = contact_states;
@@ -164,8 +174,8 @@ namespace simple_mpc
 
   void MPC::iterate(const ConstVectorRef &x, double current_time)
   {
-
-    data_handler_->updateInternalData(x, false);
+    // Update kinematics
+    updatePinocchioInfo(x.head(nq_), x.tail(nv_));
 
     // Recede all horizons
     recedeCycles(current_time);
@@ -174,7 +184,7 @@ namespace simple_mpc
     updateStepTrackerReferences();
 
     // Recede previous solutions
-    x0_ << ocp_->getProblemState(*data_handler_);
+    x0_ = x;
     xs_.erase(xs_.begin());
     xs_[0] = x0_;
     xs_.push_back(xs_.back());
@@ -209,6 +219,7 @@ namespace simple_mpc
       last_recede_time_ += time_steps * settings_.timestep;
     }
   }
+
   void MPC::recedeOnceCycle()
   {
     if (now_ == WALKING or ocp_->getContactSupport(ocp_->getSize() - 1) < ee_names_.size())
@@ -288,6 +299,7 @@ namespace simple_mpc
     ocp_->setTerminalReferenceState(x_ref_[ocp_->getSize() - 1]);
 
     velocity_base_ = x_ref_[0].segment(getModelHandler().getModel().nq, 6);
+    Vector3d foot_pos_ref, base_pos_ref, foot_pos;
     for (auto const &name : ee_names_)
     {
       int foot_land_time = -1;
@@ -301,19 +313,18 @@ namespace simple_mpc
         update = false;
 
       // Use the Raibert heuristics to compute the next foot pose
-      twist_vect_[0] = -(data_handler_->getRefFootPose(name).translation()[1] - data_handler_->getBaseFramePose().translation()[1]);
-      twist_vect_[1] = data_handler_->getRefFootPose(name).translation()[0] - data_handler_->getBaseFramePose().translation()[0];
-      next_pose_.head(2) = data_handler_->getRefFootPose(name).translation().head(2);
+
+      foot_pos_ref = data_.oMf[ocp_->getModelHandler().getRefFootId(name)].translation();
+      base_pos_ref = data_.oMf[ocp_->getModelHandler().getBaseFrameId()].translation();
+      foot_pos = data_.oMf[ocp_->getModelHandler().getFootId(name)].translation();
+
+      twist_vect_[0] = -(foot_pos_ref[1] - base_pos_ref[1]);
+      twist_vect_[1] = foot_pos_ref[0] - base_pos_ref[0];
+      next_pose_.head(2) = foot_pos_ref.head(2);
       next_pose_.head(2) += (velocity_base_.head(2) + velocity_base_[5] * twist_vect_) * (settings_.T_fly + settings_.T_contact) * settings_.timestep;
-      next_pose_[2] = data_handler_->getFootPose(name).translation()[2];
+      next_pose_[2] = foot_pos[2];
 
-      // if (name == ee_names_[0])
-      // {
-      //   std::cout << "next_pose_: " << next_pose_.transpose() << std::endl;
-      //   std::cout << "current_pose_: " << data_handler_->getFootPose(name).translation().transpose() << std::endl;
-      // }
-
-      foot_trajectories_.updateTrajectory(update, foot_land_time, data_handler_->getFootPose(name).translation(), next_pose_, name);
+      foot_trajectories_.updateTrajectory(update, foot_land_time, foot_pos, next_pose_, name);
       pinocchio::SE3 pose_ref = pinocchio::SE3::Identity();
       for (unsigned long time = 0; time < ocp_->getSize(); time++)
       {
