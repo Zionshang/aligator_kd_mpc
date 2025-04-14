@@ -78,7 +78,7 @@ int main(int argc, char const *argv[])
     auto kd_problem = std::make_shared<OCP>(ocp_settings, model_handler);
     kd_problem->createProblem(model_handler.getReferenceState(), T, force_size, gravity(2));
 
-    double time_fly = 0.6;
+    double time_fly = 0.4;
     int T_fly = time_fly / ocp_settings.timestep;
 
     std::cout << "T_fly: " << T_fly << std::endl;
@@ -170,9 +170,6 @@ int main(int argc, char const *argv[])
         // mpc.switchToStand();
         if (int(itr % 10) == 0)
         {
-            std::cout << "x_ref[0] = " << x_ref[0].transpose() << std::endl;
-            std::cout << "x_ref[end] = " << x_ref.back().transpose() << std::endl;
-
             mpc.setReferenceState(x_ref);
 
             auto start_time = std::chrono::high_resolution_clock::now();
@@ -200,7 +197,6 @@ int main(int argc, char const *argv[])
             //     std::cout << mpc.ocp_->getContactState(i)[0] << " ";
             // }
             // std::cout << std::endl;
-            
 
 #ifdef LOGGING
             fl_foot_ref_logger.push_back(kd_problem->getReferenceFootPose(0, "FL_foot_link").translation());
@@ -210,7 +206,7 @@ int main(int argc, char const *argv[])
             fl_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("FL_foot_link")].translation());
             rr_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("HR_foot_link")].translation());
 
-            // if (itr_mpc == 100)
+            // if (itr_mpc == 300)
             // {
             //     for (int i = 0; i < kd_problem->getSize(); i++)
             //     {
@@ -220,9 +216,9 @@ int main(int argc, char const *argv[])
             //         fl_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("FL_foot_link")].translation());
             //     }
             // }
-
+            std::cout << "itr_mpc: " << itr_mpc << std::endl;
 #endif
-            // mpc.testCost();
+            mpc.testCost();
             std::cout << "--------------------------" << std::endl;
         }
 
@@ -245,45 +241,63 @@ int main(int argc, char const *argv[])
     }
 #else
     VectorXd x_measure = model_handler.getReferenceState();
-    int itr = 0;
     std::vector<bool> contact_states;
-    std::vector<VectorXd> x_logger, rf_foot_ref_logger, rf_foot_logger;
+    std::vector<VectorXd> x_logger, fl_foot_ref_logger, fl_foot_logger, rr_foot_ref_logger, rr_foot_logger;
 
     std::vector<VectorXd> pos_ref(mpc_settings.T, x_measure.head(nq));
     std::vector<VectorXd> vel_ref(mpc_settings.T, x_measure.tail(nv));
     std::vector<VectorXd> x_ref(mpc_settings.T, x_measure);
     VectorXd pos_ref_start = x_measure.head(nq);
-    double vx = 0;
-    vel_ref[0](0) = vx;
+    double vx_cmd = 0.5;
+    double accel = 0.5; // m/s^2, can be adjusted
+    double current_time = 0;
 
-    while (itr < 1000)
+    while (current_time < 2)
     {
-        pin::integrate(model, pos_ref_start, vel_ref[0] * 0.001, pos_ref[0]);
-        pos_ref_start = pos_ref[0];
+        // 设置参考轨迹
+        x_ref[0].head(6) = x_measure.head(6);
+        x_ref[0].segment(nq, 6) = x_measure.segment(nq, 6);
 
-        x_ref[0].head(nq) = pos_ref[0];
-        x_ref[0].tail(nv) = vel_ref[0];
+        vel_ref[0](0) = vx_cmd;
+
+        // Define acceleration and track current velocity
+        static double vx_ref = x_measure(nq + 1);
+
+        // Accelerate gradually until reaching target velocity
+        if (vx_ref < vx_cmd) {
+            vx_ref += accel * ocp_settings.timestep;
+            if (vx_ref > vx_cmd) {
+                vx_ref = vx_cmd; // Cap at target velocity
+            }
+        }
+
+        // Set reference velocity
+        vel_ref[0](0) = vx_ref;
+        std::cout << "vx_ref: " << vx_ref << std::endl;
+
         for (int i = 1; i < mpc_settings.T; i++)
         {
             vel_ref[i] = vel_ref[i - 1];
-            pin::integrate(model, pos_ref[i - 1], vel_ref[i - 1] * 0.001, pos_ref[i]);
+            pin::integrate(model, pos_ref[i - 1], vel_ref[i - 1] * ocp_settings.timestep, pos_ref[i]);
             x_ref[i].head(nq) = pos_ref[i];
             x_ref[i].tail(nv) = vel_ref[i];
         }
 
         mpc.setReferenceState(x_ref);
-        mpc.iterate(x_measure);
+        mpc.iterate(x_measure, current_time);
 
         x_measure = mpc.xs_[1];
 
         x_logger.push_back(x_measure);
-        rf_foot_ref_logger.push_back(kd_problem->getReferenceFootPose(0, "FR_foot_link").translation());
+        fl_foot_ref_logger.push_back(kd_problem->getReferenceFootPose(0, "FL_foot_link").translation());
+        rr_foot_ref_logger.push_back(kd_problem->getReferenceFootPose(0, "HR_foot_link").translation());
         pinocchio::forwardKinematics(model_handler.getModel(), mpc.getDataHandler().getData(), x_measure.head(model_handler.getModel().nq));
         pinocchio::updateFramePlacements(model_handler.getModel(), mpc.getDataHandler().getData());
-        rf_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("FR_foot_link")].translation());
+        fl_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("FL_foot_link")].translation());
+        rr_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("HR_foot_link")].translation());
 
-        itr++;
-        std::cout << "itr = " << itr << std::endl;
+        current_time += ocp_settings.timestep;
+        std::cout << "current_time = " << current_time << std::endl;
     }
 #endif
     saveVectorsToCsv("x.csv", x_logger);

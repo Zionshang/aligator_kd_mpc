@@ -37,8 +37,8 @@ namespace simple_mpc
   }
 
   StageModel OCP::createStage(const std::map<std::string, bool> &contact_phase,
-                                          const std::map<std::string, pinocchio::SE3> &contact_pose,
-                                          const std::map<std::string, Eigen::VectorXd> &contact_force)
+                              const std::map<std::string, pinocchio::SE3> &contact_pose,
+                              const std::map<std::string, Eigen::VectorXd> &contact_force)
   {
     auto space = MultibodyPhaseSpace(model_handler_.getModel());
     auto rcost = CostStack(space, nu_);
@@ -55,11 +55,11 @@ namespace simple_mpc
 
     for (auto const &name : model_handler_.getFeetNames())
     {
-      FrameTranslationResidual frame_residual = FrameTranslationResidual(
-          space.ndx(), nu_, model_handler_.getModel(), contact_pose.at(name).translation(),
-          model_handler_.getFootId(name));
+        FrameTranslationResidual frame_residual = FrameTranslationResidual(
+            space.ndx(), nu_, model_handler_.getModel(), contact_pose.at(name).translation(),
+            model_handler_.getFootId(name));
 
-      rcost.addCost(name + "_pose_cost", QuadraticResidualCost(space, frame_residual, settings_.w_frame));
+        rcost.addCost(name + "_pose_cost", QuadraticResidualCost(space, frame_residual, settings_.w_frame));
     }
 
     KinodynamicsFwdDynamics ode = KinodynamicsFwdDynamics(
@@ -87,9 +87,9 @@ namespace simple_mpc
       if (contact_phase.at(name))
       {
         // 摩擦力约束
-          CentroidalFrictionConeResidual friction_residual =
-              CentroidalFrictionConeResidual(space.ndx(), nu_, i, settings_.mu, 1e-4);
-          stm.addConstraint(friction_residual, NegativeOrthant());
+        CentroidalFrictionConeResidual friction_residual =
+            CentroidalFrictionConeResidual(space.ndx(), nu_, i, settings_.mu, 1e-4);
+        stm.addConstraint(friction_residual, NegativeOrthant());
 
         // 支撑腿速度为 0 约束
         FrameVelocityResidual frame_vel = FrameVelocityResidual(
@@ -189,9 +189,9 @@ namespace simple_mpc
 
   // todo: 传参改为传递结构体
   void OCP::createProblem(const ConstVectorRef &x0,
-                                      const size_t horizon,
-                                      const int force_size,
-                                      const double gravity) // todo: double 改为 Eigen::Vector3d
+                          const size_t horizon,
+                          const int force_size,
+                          const double gravity) // todo: double 改为 Eigen::Vector3d
   {
     std::vector<std::map<std::string, bool>> contact_phases;
     std::vector<std::map<std::string, pinocchio::SE3>> contact_poses;
@@ -266,11 +266,11 @@ namespace simple_mpc
 
     return cs;
   }
-  const pinocchio::SE3 OCP::getReferenceFootPose(const std::size_t t, const std::string & ee_name)
+  const pinocchio::SE3 OCP::getReferenceFootPose(const std::size_t t, const std::string &ee_name)
   {
-    CostStack * cs = getCostStack(t);
-    QuadraticResidualCost * qrc = cs->getComponent<QuadraticResidualCost>(ee_name + "_pose_cost");
-    FrameTranslationResidual * cfr = qrc->getResidual<FrameTranslationResidual>();
+    CostStack *cs = getCostStack(t);
+    QuadraticResidualCost *qrc = cs->getComponent<QuadraticResidualCost>(ee_name + "_pose_cost");
+    FrameTranslationResidual *cfr = qrc->getResidual<FrameTranslationResidual>();
     SE3 ref = SE3::Identity();
     ref.translation() = cfr->getReference();
     return ref;

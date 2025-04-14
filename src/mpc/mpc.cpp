@@ -277,16 +277,17 @@ namespace simple_mpc
       if (!foot_land_times_.at(name).empty() and foot_land_times_.at(name)[0] < 0)
         foot_land_times_.at(name).erase(foot_land_times_.at(name).begin());
     }
-    // std::cout << "foot_land_times_:" << std::endl;
-    // for (const auto &pair : foot_land_times_)
-    // {
-    //   std::cout << pair.first << ": ";
-    //   for (const auto &time : pair.second)
-    //   {
-    //     std::cout << time << " ";
-    //   }
-    //   std::cout << std::endl;
-    // }
+
+    std::cout << "foot_land_times_:" << std::endl;
+    for (const auto &pair : foot_land_times_)
+    {
+      std::cout << pair.first << ": ";
+      for (const auto &time : pair.second)
+      {
+        std::cout << time << " ";
+      }
+      std::cout << std::endl;
+    }
   }
 
   void MPC::updateStepTrackerReferences()
@@ -313,7 +314,6 @@ namespace simple_mpc
         update = false;
 
       // Use the Raibert heuristics to compute the next foot pose
-
       foot_pos_ref = data_.oMf[ocp_->getModelHandler().getRefFootId(name)].translation();
       base_pos_ref = data_.oMf[ocp_->getModelHandler().getBaseFrameId()].translation();
       foot_pos = data_.oMf[ocp_->getModelHandler().getFootId(name)].translation();
@@ -331,6 +331,11 @@ namespace simple_mpc
         pose_ref.translation() = foot_trajectories_.getReference(name)[time];
         ocp_->setReferenceFootPose(time, name, pose_ref);
       }
+    }
+
+    for (size_t i = 0; i < ocp_->getSize(); i++)
+    {
+      std::cout << "i: " << i << " " << ocp_->getContactState(i)[0] <<" "<< foot_trajectories_.getReference(ee_names_[0])[i].transpose() << std::endl;
     }
   }
 

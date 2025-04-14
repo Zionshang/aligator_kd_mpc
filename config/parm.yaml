@@ -3,14 +3,14 @@ w_basepos: [100, 500, 1500, 300, 300, 100]
 w_basevel: [10, 50, 100, 30, 30, 10]
 w_legpos: [10, 10, 10]
 w_legvel: [0.1, 0.1, 0.05]
-w_foot: [30, 30, 100]
+w_foot: [1000, 1000, 1000]
 w_force: [0.001, 0.001, 0.001]
 w_legacc: [1e-5, 1e-5, 1e-5]
 
 # mpc settings
 horizon: 50     # number of steps in the prediction horizon
 timestep: 0.01  # timestep in the prediction horizon
-max_iter: 2     # maximum number of iterations in ddp solver
+max_iter: 1     # maximum number of iterations in ddp solver
 num_threads: 8  # number of threads in ddp solver
 
 # dynamic settings
