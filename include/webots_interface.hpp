@@ -7,12 +7,14 @@
 #include <webots/Supervisor.hpp>
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
+#include <webots/Keyboard.hpp>
 
 class WebotsInterface
 {
 public:
     WebotsInterface();
     ~WebotsInterface();
+    void recvUserCmd(Eigen::Vector3d &v_cmd);
     void recvState(Eigen::VectorXd &state_vector); // second
     void sendCmd(const Eigen::VectorXd &tau);
     bool isRunning();
@@ -35,6 +37,7 @@ private:
     webots::PositionSensor *joint_sensor_[12];
     webots::InertialUnit *imu_;
     webots::Gyro *gyro_;
+    webots::Keyboard *keyboard_;
 
     std::string robot_name_ = "GalileoMini";
     std::string imu_name_ = "imu";
@@ -43,8 +46,11 @@ private:
                                                    "FR_abd_joint_sensor", "FR_hip_joint_sensor", "FR_knee_joint_sensor",
                                                    "HL_abd_joint_sensor", "HL_hip_joint_sensor", "HL_knee_joint_sensor",
                                                    "HR_abd_joint_sensor", "HR_hip_joint_sensor", "HR_knee_joint_sensor"};
+                                                   
     std::vector<std::string> joint_motor_name_ = {"FL_abd_joint", "FL_hip_joint", "FL_knee_joint",
                                                   "FR_abd_joint", "FR_hip_joint", "FR_knee_joint",
                                                   "HL_abd_joint", "HL_hip_joint", "HL_knee_joint",
                                                   "HR_abd_joint", "HR_hip_joint", "HR_knee_joint",};
+
+    int key_, last_key_;
 };

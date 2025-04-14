@@ -46,6 +46,39 @@ void WebotsInterface::recvState(Eigen::VectorXd &state_vector)
     state_vector << q, v;
 }
 
+void WebotsInterface::recvUserCmd(Eigen::Vector3d &v_cmd)
+{
+    key_ = keyboard_->getKey();
+    if (key_ != last_key_)
+    {
+        switch (key_)
+        {
+        case 'w':
+        case 'W':
+            v_cmd(0) += 0.1;
+            break;
+        case 'b':
+        case 'B':
+            v_cmd(0) += -0.1;
+            break;
+        case 'a':
+        case 'A':
+            v_cmd(1) += 0.1;
+            break;
+        case 'd':
+        case 'D':
+            v_cmd(1) += -0.1;
+            break;
+        case 's':
+        case 'S':
+            v_cmd.setZero();
+            v_cmd.setZero();
+            break;
+        }
+    }
+    last_key_ = key_;
+}
+
 void WebotsInterface::sendCmd(const Eigen::VectorXd &tau)
 {
     for (int i = 0; i < 12; i++)
@@ -82,6 +115,8 @@ void WebotsInterface::initRecv()
         joint_sensor_[i] = supervisor_->getPositionSensor(joint_sensor_name_[i]);
         joint_sensor_[i]->enable(time_step_);
     }
+    keyboard_ = supervisor_->getKeyboard();
+    keyboard_->enable(time_step_);
 }
 
 void WebotsInterface::initSend()

@@ -24,7 +24,8 @@ struct YamlParams
     int horizon;
     double timestep;
     int max_iter;
-    
+    int num_threads;
+
     // Dynamic settings
     double friction;
 
@@ -47,6 +48,7 @@ struct YamlParams
             horizon = config["horizon"].as<int>();
             timestep = config["timestep"].as<double>();
             max_iter = config["max_iter"].as<int>();
+            num_threads = config["num_threads"].as<int>();
             
             // 读取Dynamic settings
             friction = config["friction"].as<double>();
