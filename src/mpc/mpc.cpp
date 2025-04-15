@@ -249,15 +249,24 @@ namespace simple_mpc
 
       updateCycleTiming(true); // ?为什么这里是true
     }
-    // // Print out contact_states_ for debugging
-    // std::vector<std::string> foot_names = {"FL_foot_link", "FR_foot_link", "HL_foot_link", "HR_foot_link"};
-    // for (const auto &foot : foot_names)
-    // {
-    //   std::cout << foot.substr(0, 2) << " states: ";
-    //   for (const auto &state : contact_states_)
-    //     std::cout << state.at(foot) << " ";
-    //   std::cout << std::endl;
-    // }
+    // Print out contact_states_ for debugging
+    std::cout << std::endl;
+
+    std::cout << "Contact states:" << std::endl;
+    std::vector<std::string> foot_names = {"FL_foot_link", "FR_foot_link", "HL_foot_link", "HR_foot_link"};
+    for (const auto &foot : foot_names)
+    {
+      for (const auto &state : contact_states_)
+        std::cout << state.at(foot) << " ";
+      std::cout << std::endl;
+    }
+
+    std::cout << "OCP Contact states:" << std::endl;
+    for (int i = 0; i < ocp_->getSize(); i++)
+    {
+      std::cout << ocp_->getContactState(i)[0] << " ";
+    }
+    std::cout << std::endl;
   }
 
   // updateOnlyHorizon: 只更新mpc预测周期内的时间，不更新整个stage_models周期
@@ -333,10 +342,23 @@ namespace simple_mpc
       }
     }
 
+    // Set output precision to 2 decimal places
+    std::cout << std::fixed << std::setprecision(2);
     for (size_t i = 0; i < ocp_->getSize(); i++)
     {
-      std::cout << "i: " << i << " " << ocp_->getContactState(i)[0] <<" "<< foot_trajectories_.getReference(ee_names_[0])[i].transpose() << std::endl;
+      std::cout << ocp_->getContactState(i)[0] << " " << foot_trajectories_.getReference(ee_names_[0])[i](0) << " ";
     }
+    std::cout << std::endl;
+    for (size_t i = 0; i < ocp_->getSize(); i++)
+    {
+      std::cout << ocp_->getContactState(i)[0] << " " << foot_trajectories_.getReference(ee_names_[0])[i](1) << " ";
+    }
+    std::cout << std::endl;
+    for (size_t i = 0; i < ocp_->getSize(); i++)
+    {
+      std::cout << ocp_->getContactState(i)[0] << " " << foot_trajectories_.getReference(ee_names_[0])[i](2) << " ";
+    }
+    std::cout << std::endl;
   }
 
   TrajOptProblem &MPC::getTrajOptProblem()

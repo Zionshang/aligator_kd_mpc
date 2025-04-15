@@ -218,7 +218,7 @@ int main(int argc, char const *argv[])
             // }
             std::cout << "itr_mpc: " << itr_mpc << std::endl;
 #endif
-            mpc.testCost();
+            // mpc.testCost();
             std::cout << "--------------------------" << std::endl;
         }
 
