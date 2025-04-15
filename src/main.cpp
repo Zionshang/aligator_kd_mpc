@@ -199,12 +199,12 @@ int main(int argc, char const *argv[])
             // std::cout << std::endl;
 
 #ifdef LOGGING
-            fl_foot_ref_logger.push_back(kd_problem->getReferenceFootPose(0, "FL_foot_link").translation());
-            rr_foot_ref_logger.push_back(kd_problem->getReferenceFootPose(0, "HR_foot_link").translation());
-            pinocchio::forwardKinematics(model_handler.getModel(), mpc.getDataHandler().getData(), x_measure.head(model_handler.getModel().nq));
-            pinocchio::updateFramePlacements(model_handler.getModel(), mpc.getDataHandler().getData());
-            fl_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("FL_foot_link")].translation());
-            rr_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("HR_foot_link")].translation());
+            // fl_foot_ref_logger.push_back(kd_problem->getReferenceFootPose(0, "FL_foot_link").translation());
+            // rr_foot_ref_logger.push_back(kd_problem->getReferenceFootPose(0, "HR_foot_link").translation());
+            // pinocchio::forwardKinematics(model_handler.getModel(), mpc.getDataHandler().getData(), x_measure.head(model_handler.getModel().nq));
+            // pinocchio::updateFramePlacements(model_handler.getModel(), mpc.getDataHandler().getData());
+            // fl_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("FL_foot_link")].translation());
+            // rr_foot_logger.push_back(mpc.getDataHandler().getData().oMf[model_handler.getFootId("HR_foot_link")].translation());
 
             // if (itr_mpc == 300)
             // {

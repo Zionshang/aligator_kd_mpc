@@ -55,11 +55,14 @@ namespace simple_mpc
 
     for (auto const &name : model_handler_.getFeetNames())
     {
+      if (contact_phase.at(name) == false)
+      {
         FrameTranslationResidual frame_residual = FrameTranslationResidual(
             space.ndx(), nu_, model_handler_.getModel(), contact_pose.at(name).translation(),
             model_handler_.getFootId(name));
 
         rcost.addCost(name + "_pose_cost", QuadraticResidualCost(space, frame_residual, settings_.w_frame));
+      }
     }
 
     KinodynamicsFwdDynamics ode = KinodynamicsFwdDynamics(

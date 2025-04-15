@@ -338,7 +338,10 @@ namespace simple_mpc
       for (unsigned long time = 0; time < ocp_->getSize(); time++)
       {
         pose_ref.translation() = foot_trajectories_.getReference(name)[time];
-        ocp_->setReferenceFootPose(time, name, pose_ref);
+        if (ocp_->getContactState(time)[ocp_->getModelHandler().getFootNb(name)] == false)
+        {
+          ocp_->setReferenceFootPose(time, name, pose_ref);
+        }
       }
     }
 
