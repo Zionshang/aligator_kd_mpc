@@ -39,8 +39,8 @@ namespace simple_mpc
     foot_trajectories_.updateApex(settings.swing_apex);
     x0_ = ocp_->getProblemState(*data_handler_);
     x_ref_.assign(ocp_->getSize(), x0_);
-
-    solver_ = std::make_unique<SolverProxDDP>(settings_.TOL, settings_.mu_init, maxiters, aligator::VerboseLevel::QUIET);
+  
+    solver_ = std::make_unique<SolverProxDDP>(settings_.TOL, settings_.mu_init, maxiters, aligator::VerboseLevel::VERBOSE);
     solver_->rollout_type_ = aligator::RolloutType::LINEAR;
 
     if (settings_.num_threads > 1)
@@ -249,24 +249,24 @@ namespace simple_mpc
 
       updateCycleTiming(true); // ?为什么这里是true
     }
-    // Print out contact_states_ for debugging
-    std::cout << std::endl;
+    // // Print out contact_states_ for debugging
+    // std::cout << std::endl;
 
-    std::cout << "Contact states:" << std::endl;
-    std::vector<std::string> foot_names = {"FL_foot_link", "FR_foot_link", "HL_foot_link", "HR_foot_link"};
-    for (const auto &foot : foot_names)
-    {
-      for (const auto &state : contact_states_)
-        std::cout << state.at(foot) << " ";
-      std::cout << std::endl;
-    }
+    // std::cout << "Contact states:" << std::endl;
+    // std::vector<std::string> foot_names = {"FL_foot_link", "FR_foot_link", "HL_foot_link", "HR_foot_link"};
+    // for (const auto &foot : foot_names)
+    // {
+    //   for (const auto &state : contact_states_)
+    //     std::cout << state.at(foot) << " ";
+    //   std::cout << std::endl;
+    // }
 
-    std::cout << "OCP Contact states:" << std::endl;
-    for (int i = 0; i < ocp_->getSize(); i++)
-    {
-      std::cout << ocp_->getContactState(i)[0] << " ";
-    }
-    std::cout << std::endl;
+    // std::cout << "OCP Contact states:" << std::endl;
+    // for (int i = 0; i < ocp_->getSize(); i++)
+    // {
+    //   std::cout << ocp_->getContactState(i)[0] << " ";
+    // }
+    // std::cout << std::endl;
   }
 
   // updateOnlyHorizon: 只更新mpc预测周期内的时间，不更新整个stage_models周期
@@ -287,16 +287,16 @@ namespace simple_mpc
         foot_land_times_.at(name).erase(foot_land_times_.at(name).begin());
     }
 
-    std::cout << "foot_land_times_:" << std::endl;
-    for (const auto &pair : foot_land_times_)
-    {
-      std::cout << pair.first << ": ";
-      for (const auto &time : pair.second)
-      {
-        std::cout << time << " ";
-      }
-      std::cout << std::endl;
-    }
+    // std::cout << "foot_land_times_:" << std::endl;
+    // for (const auto &pair : foot_land_times_)
+    // {
+    //   std::cout << pair.first << ": ";
+    //   for (const auto &time : pair.second)
+    //   {
+    //     std::cout << time << " ";
+    //   }
+    //   std::cout << std::endl;
+    // }
   }
 
   void MPC::updateStepTrackerReferences()
@@ -345,23 +345,23 @@ namespace simple_mpc
       }
     }
 
-    // Set output precision to 2 decimal places
-    std::cout << std::fixed << std::setprecision(2);
-    for (size_t i = 0; i < ocp_->getSize(); i++)
-    {
-      std::cout << ocp_->getContactState(i)[0] << " " << foot_trajectories_.getReference(ee_names_[0])[i](0) << " ";
-    }
-    std::cout << std::endl;
-    for (size_t i = 0; i < ocp_->getSize(); i++)
-    {
-      std::cout << ocp_->getContactState(i)[0] << " " << foot_trajectories_.getReference(ee_names_[0])[i](1) << " ";
-    }
-    std::cout << std::endl;
-    for (size_t i = 0; i < ocp_->getSize(); i++)
-    {
-      std::cout << ocp_->getContactState(i)[0] << " " << foot_trajectories_.getReference(ee_names_[0])[i](2) << " ";
-    }
-    std::cout << std::endl;
+    // // Set output precision to 2 decimal places
+    // std::cout << std::fixed << std::setprecision(2);
+    // for (size_t i = 0; i < ocp_->getSize(); i++)
+    // {
+    //   std::cout << ocp_->getContactState(i)[0] << " " << foot_trajectories_.getReference(ee_names_[0])[i](0) << " ";
+    // }
+    // std::cout << std::endl;
+    // for (size_t i = 0; i < ocp_->getSize(); i++)
+    // {
+    //   std::cout << ocp_->getContactState(i)[0] << " " << foot_trajectories_.getReference(ee_names_[0])[i](1) << " ";
+    // }
+    // std::cout << std::endl;
+    // for (size_t i = 0; i < ocp_->getSize(); i++)
+    // {
+    //   std::cout << ocp_->getContactState(i)[0] << " " << foot_trajectories_.getReference(ee_names_[0])[i](2) << " ";
+    // }
+    // std::cout << std::endl;
   }
 
   TrajOptProblem &MPC::getTrajOptProblem()

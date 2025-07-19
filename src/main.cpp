@@ -6,7 +6,6 @@
 #include "utils/logger.hpp"
 #include <pinocchio/algorithm/kinematics.hpp>
 #include <pinocchio/algorithm/frames.hpp>
-#include "wbc/weighted_wbc.hpp"
 #include "wbc/relaxed_wbc.hpp"
 #include "utils/yaml_loader.hpp"
 #include "mpc/interpolator.hpp"
@@ -16,7 +15,6 @@ using Eigen::Quaterniond;
 using Eigen::Vector3d;
 using Eigen::VectorXd;
 
-#define EXAMPLE_ROBOT_DATA_MODEL_DIR "/opt/openrobots/share/example-robot-data/robots"
 #define WEBOTS
 #define LOGGING
 
@@ -26,8 +24,8 @@ int main(int argc, char const *argv[])
     Model model;
     // std::string urdf_path = EXAMPLE_ROBOT_DATA_MODEL_DIR "/go2_description/urdf/go2.urdf";
     // std::string srdf_path = EXAMPLE_ROBOT_DATA_MODEL_DIR "/go2_description/srdf/go2.srdf";
-    std::string urdf_path = "/home/zishang/cpp_workspace/aligator_kd_mpc/robot/galileo_mini/urdf/galileo_mini.urdf";
-    std::string srdf_path = "/home/zishang/cpp_workspace/aligator_kd_mpc/robot/galileo_mini/srdf/galileo_mini.srdf";
+    std::string urdf_path = "/home/zishang/cpp_workspace/aligator_kd_mpc/robot/galileo_v1d6_description/urdf/galileo_v1d6.urdf";
+    std::string srdf_path = "/home/zishang/cpp_workspace/aligator_kd_mpc/robot/galileo_v1d6_description/srdf/galileo_v1d6.srdf";
 
     pinocchio::urdf::buildModel(urdf_path, JointModelFreeFlyer(), model);
     pinocchio::srdf::loadReferenceConfigurations(model, srdf_path, false);
@@ -36,10 +34,10 @@ int main(int argc, char const *argv[])
 
     std::string base_joint_name = "root_joint";
     RobotModelHandler model_handler(model, "standing", base_joint_name);
-    model_handler.addFoot("FL_foot_link", base_joint_name, SE3(Quaterniond::Identity(), Vector3d(0.32, 0.18, 0.0)));
-    model_handler.addFoot("FR_foot_link", base_joint_name, SE3(Quaterniond::Identity(), Vector3d(0.32, -0.18, 0.0)));
-    model_handler.addFoot("HL_foot_link", base_joint_name, SE3(Quaterniond::Identity(), Vector3d(-0.32, 0.18, 0.0)));
-    model_handler.addFoot("HR_foot_link", base_joint_name, SE3(Quaterniond::Identity(), Vector3d(-0.32, -0.18, 0.0)));
+    model_handler.addFoot("FL_foot", base_joint_name, SE3(Quaterniond::Identity(), Vector3d(0.28, 0.18, 0.0)));
+    model_handler.addFoot("FR_foot", base_joint_name, SE3(Quaterniond::Identity(), Vector3d(0.28, -0.18, 0.0)));
+    model_handler.addFoot("RL_foot", base_joint_name, SE3(Quaterniond::Identity(), Vector3d(-0.28, 0.18, 0.0)));
+    model_handler.addFoot("RR_foot", base_joint_name, SE3(Quaterniond::Identity(), Vector3d(-0.28, -0.18, 0.0)));
 
     int force_size = 3;
     int nk = model_handler.getFeetNames().size();
@@ -72,7 +70,7 @@ int main(int argc, char const *argv[])
     ocp_settings.gravity = gravity;
     ocp_settings.mu = params.friction;
     ocp_settings.force_size = force_size;
-    ocp_settings.kinematics_limits = true;
+    ocp_settings.kinematics_limits = false;
 
     int T = params.horizon;
     auto kd_problem = std::make_shared<OCP>(ocp_settings, model_handler);
@@ -98,17 +96,17 @@ int main(int argc, char const *argv[])
 
     ////////////////////// 定义步态 //////////////////////
     std::map<std::string, bool> contact_phase_lift_FL = {
-        {"FL_foot_link", false},
-        {"FR_foot_link", true},
-        {"HL_foot_link", true},
-        {"HR_foot_link", false},
+        {"FL_foot", false},
+        {"FR_foot", true},
+        {"RL_foot", true},
+        {"RR_foot", false},
     };
 
     std::map<std::string, bool> contact_phase_lift_FR = {
-        {"FL_foot_link", true},
-        {"FR_foot_link", false},
-        {"HL_foot_link", false},
-        {"HR_foot_link", true},
+        {"FL_foot", true},
+        {"FR_foot", false},
+        {"RL_foot", false},
+        {"RR_foot", true},
     };
     std::vector<std::map<std::string, bool>> contact_phases;
     contact_phases.insert(contact_phases.end(), T_fly, contact_phase_lift_FL);
@@ -167,7 +165,7 @@ int main(int argc, char const *argv[])
             x_ref[i].tail(nv) = vel_ref[i];
         }
 
-        // mpc.switchToStand();
+        mpc.switchToStand();
         if (int(itr % 10) == 0)
         {
             mpc.setReferenceState(x_ref);

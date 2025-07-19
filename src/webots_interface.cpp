@@ -34,7 +34,7 @@ void WebotsInterface::recvState(Eigen::VectorXd &state_vector)
     Eigen::Vector3d robotVel = Eigen::Map<const Eigen::Vector3d>(robot_node_->getVelocity()); // expressed in WORLD frame
     Eigen::Vector3d robotVel_B = quaternion.toRotationMatrix().transpose() * robotVel;        // expressed in BODY frame
 
-    q.head(6) << robotPos, quaternion.coeffs();
+    q.head(7) << robotPos, quaternion.coeffs();
     v.head(6) << robotVel_B, angular_vel_B;
 
     for (int i = 0; i < 12; i++)
